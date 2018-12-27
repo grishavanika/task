@@ -31,7 +31,7 @@ namespace nn
 
 		for (auto& task : tasks)
 		{
-			if (task->tick() == Status::Finished)
+			if (task->tick() != Status::InProgress)
 			{
 				finished.push_back(std::move(task));
 				task = nullptr;

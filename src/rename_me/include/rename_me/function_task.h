@@ -47,7 +47,9 @@ namespace nn
 			virtual Status status() const override
 			{
 				assert(state_ != State::None);
-				return Status::Finished;
+				return (state_ == State::Invoked)
+					? Status::Successful
+					: Status::Failed;
 			}
 
 			virtual bool cancel() override

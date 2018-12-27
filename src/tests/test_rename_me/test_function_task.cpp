@@ -28,7 +28,7 @@ TEST(FunctionTask, Function_Is_Executed_Once)
 		ASSERT_FALSE(task.is_in_progress());
 		ASSERT_TRUE(task.is_finished());
 		ASSERT_FALSE(task.is_canceled());
-		ASSERT_EQ(Status::Finished, task.status());
+		ASSERT_EQ(Status::Successful, task.status());
 		ASSERT_EQ(1, calls_count);
 
 		sch.tick();
@@ -37,7 +37,7 @@ TEST(FunctionTask, Function_Is_Executed_Once)
 		ASSERT_FALSE(task.is_in_progress());
 		ASSERT_TRUE(task.is_finished());
 		ASSERT_FALSE(task.is_canceled());
-		ASSERT_EQ(Status::Finished, task.status());
+		ASSERT_EQ(Status::Successful, task.status());
 		ASSERT_EQ(1, calls_count);
 	}
 
@@ -70,7 +70,7 @@ TEST(FunctionTask, Can_Be_Canceled_Before_First_Call_To_Tick)
 	ASSERT_TRUE(task.is_canceled());
 	ASSERT_FALSE(task.is_in_progress());
 	ASSERT_TRUE(task.is_finished());
-	ASSERT_EQ(Status::Finished, task.status());
+	ASSERT_EQ(Status::Failed, task.status());
 	ASSERT_EQ(0, calls_count);
 }
 

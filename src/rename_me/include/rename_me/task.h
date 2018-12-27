@@ -35,6 +35,8 @@ namespace nn
 		bool is_in_progress() const;
 		bool is_finished() const;
 		bool is_canceled() const;
+		bool is_failed() const;
+		bool is_successful() const;
 
 	private:
 		detail::InternalTask<T, E>* make_task(Scheduler& scheduler
@@ -121,13 +123,25 @@ namespace nn
 	template<typename T, typename E>
 	bool Task<T, E>::is_finished() const
 	{
-		return (status() == Status::Finished);
+		return !is_in_progress();
 	}
 
 	template<typename T, typename E>
 	bool Task<T, E>::is_canceled() const
 	{
 		return (task_ ? task_->is_canceled() : false);
+	}
+
+	template<typename T, typename E>
+	bool Task<T, E>::is_failed() const
+	{
+		return (status() == Status::Failed);
+	}
+
+	template<typename T, typename E>
+	bool Task<T, E>::is_successful() const
+	{
+		return (status() == Status::Successful);
 	}
 
 	template<typename T, typename E>

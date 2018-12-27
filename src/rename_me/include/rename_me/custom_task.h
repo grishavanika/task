@@ -6,7 +6,8 @@ namespace nn
 	enum class Status
 	{
 		InProgress,
-		Finished
+		Successful,
+		Failed,
 	};
 
 	template<typename T, typename E>
