@@ -29,9 +29,12 @@ namespace nn
 		Task(const Task& rhs) = delete;
 		Task& operator=(const Task& rhs) = delete;
 
+		void try_cancel();
+
 		Status status() const;
 		bool is_in_progress() const;
 		bool is_finished() const;
+		bool is_canceled() const;
 
 	private:
 		detail::InternalTask<T, E>* make_task(Scheduler& scheduler
@@ -121,4 +124,18 @@ namespace nn
 		return (status() == Status::Finished);
 	}
 
+	template<typename T, typename E>
+	bool Task<T, E>::is_canceled() const
+	{
+		return (task_ ? task_->is_canceled() : false);
+	}
+
+	template<typename T, typename E>
+	void Task<T, E>::try_cancel()
+	{
+		if (task_)
+		{
+			task_->cancel();
+		}
+	}
 } // namespace nn

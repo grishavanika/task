@@ -31,12 +31,16 @@ namespace nn
 			Scheduler& scheduler();
 
 			virtual Status tick() override;
+			void cancel();
 			Status status() const;
+			bool is_canceled() const;
 
 		private:
 			Scheduler& scheduler_;
 			std::unique_ptr<ICustomTask<T, E>> task_;
 			Status last_run_;
+			bool canceled_;
+			bool try_cancel_;
 		};
 
 	} // namespace detail
@@ -54,6 +58,8 @@ namespace nn
 			: scheduler_(scheduler)
 			, task_(std::move(task))
 			, last_run_(Status::InProgress)
+			, canceled_(false)
+			, try_cancel_(false)
 		{
 			assert(task_);
 		}
@@ -68,6 +74,11 @@ namespace nn
 		Status InternalTask<T, E>::tick()
 		{
 			assert(last_run_ == Status::InProgress);
+			if (!canceled_ && try_cancel_)
+			{
+				canceled_ = task_->cancel();
+			}
+			try_cancel_ = false;
 			task_->tick();
 			last_run_ = task_->status();
 			return last_run_;
@@ -79,5 +90,16 @@ namespace nn
 			return last_run_;
 		}
 
+		template<typename T, typename E>
+		void InternalTask<T, E>::cancel()
+		{
+			try_cancel_ = true;
+		}
+
+		template<typename T, typename E>
+		bool InternalTask<T, E>::is_canceled() const
+		{
+			return canceled_;
+		}
 	} // namespace detail
 } // namespace nn

@@ -17,6 +17,7 @@ namespace nn
 
 		virtual void tick() = 0;
 		virtual Status status() const = 0;
+		virtual bool cancel() = 0;
 	};
 
 } // namespace nn

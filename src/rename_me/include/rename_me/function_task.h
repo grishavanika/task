@@ -7,6 +7,7 @@
 #include <tuple>
 
 #include <cassert>
+#include <cstdint>
 
 namespace nn
 {
@@ -18,35 +19,55 @@ namespace nn
 		template<typename T, typename F, typename... Args>
 		class FunctionTask<T, F, std::tuple<Args...>> : public ICustomTask<T, void>
 		{
+			enum class State : std::uint8_t
+			{
+				None,
+				Invoked,
+				Canceled,
+			};
+
 		public:
 			explicit FunctionTask(F&& f, std::tuple<Args...>&& args)
 				: result_()
 				, f_(std::move(f))
 				, args_(std::move(args))
-				, invoked_(false)
+				, state_(State::None)
 			{
 			}
 
 			virtual void tick() override
 			{
-				assert(!invoked_);
-				invoked_ = true;
-				result_ = std::apply(std::move(f_), std::move(args_));
+				if (state_ == State::None)
+				{
+					state_ = State::Invoked;
+					result_ = std::apply(std::move(f_), std::move(args_));
+				}
 			}
 
 			virtual Status status() const override
 			{
-				assert(invoked_);
+				assert(state_ != State::None);
 				return Status::Finished;
 			}
+
+			virtual bool cancel() override
+			{
+				if (state_ == State::None)
+				{
+					// Canceled before tick()
+					state_ = State::Canceled;
+					return true;
+				}
+				return false;
+			}
+
 
 		private:
 			// #TODO: aligned_storage for non-defalt-constructiable things
 			T result_;
 			F f_;
 			std::tuple<Args...> args_;
-			// #TODO: for debug purpose, remove later
-			bool invoked_;
+			State state_;
 		};
 
 	} // namespace detail
