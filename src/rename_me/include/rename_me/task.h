@@ -30,16 +30,16 @@ namespace nn
 		Task& operator=(const Task& rhs) = delete;
 
 		void try_cancel();
+		bool is_canceled() const;
 
 		Status status() const;
 		bool is_in_progress() const;
 		bool is_finished() const;
-		bool is_canceled() const;
 		bool is_failed() const;
 		bool is_successful() const;
 
 	private:
-		detail::InternalTask<T, E>* make_task(Scheduler& scheduler
+		static detail::InternalTask<T, E>* make_task(Scheduler& scheduler
 			, std::unique_ptr<ICustomTask<T, E>> task);
 
 		void remove();
@@ -58,7 +58,7 @@ namespace nn
 namespace nn
 {
 	template<typename T, typename E>
-	detail::InternalTask<T, E>* Task<T, E>::make_task(Scheduler& scheduler
+	/*static*/ detail::InternalTask<T, E>* Task<T, E>::make_task(Scheduler& scheduler
 		, std::unique_ptr<ICustomTask<T, E>> task)
 	{
 		auto impl = std::make_unique<detail::InternalTask<T, E>>(scheduler, std::move(task));

@@ -1,6 +1,5 @@
 #pragma once
 #include <rename_me/task.h>
-#include <rename_me/scheduler.h>
 #include <rename_me/detail/cpp_20.h>
 
 #include <functional>
@@ -74,6 +73,10 @@ namespace nn
 
 	} // namespace detail
 
+	// #TODO: probably, if function returns T&, reference should not be discarded.
+	// Looks like it depends on std::expected: if it supports references - they can 
+	// be added easily.
+	// #TODO: enable_if only f(args...) is valid expression
 	template<typename F, typename... Args>
 	auto make_task(Scheduler& scheduler, F&& f, Args&&... args)
 	{
