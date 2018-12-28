@@ -2,6 +2,7 @@
 #include <rename_me/custom_task.h>
 
 #include <memory>
+#include <atomic>
 
 #include <cassert>
 
@@ -39,9 +40,11 @@ namespace nn
 		private:
 			Scheduler& scheduler_;
 			std::unique_ptr<ICustomTask<T, E>> task_;
-			Status last_run_;
-			bool canceled_;
-			bool try_cancel_;
+			// #TODO: looks like it's possible to have some other "packed"
+			// representation for these flags to have single atomic<>
+			std::atomic<Status> last_run_;
+			std::atomic_bool canceled_;
+			std::atomic_bool try_cancel_;
 		};
 
 	} // namespace detail
@@ -87,19 +90,19 @@ namespace nn
 		template<typename T, typename E>
 		Status InternalTask<T, E>::status() const
 		{
-			return last_run_;
+			return last_run_.load();
 		}
 
 		template<typename T, typename E>
 		void InternalTask<T, E>::cancel()
 		{
-			try_cancel_ = true;
+			try_cancel_.store(true);
 		}
 
 		template<typename T, typename E>
 		bool InternalTask<T, E>::is_canceled() const
 		{
-			return canceled_;
+			return canceled_.load();
 		}
 
 		template<typename T, typename E>

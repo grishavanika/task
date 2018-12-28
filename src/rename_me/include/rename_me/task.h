@@ -70,12 +70,18 @@ namespace nn
 		// on_finish() callback.
 		// Because of this decision, getters of values of the task should be const,
 		// but return non-const reference so client can get value.
+		// 
+		// Note: the behavior is undefined if get*():
+		//  1. is called before task't finish
+		//  2. value from expected<> is moved more than once
+		//  3. value from expected<> is read & moved from different threads
+		//		(effect of 2nd case)
 		expected<T, E>& get() const &;
 		expected<T, E>& get() &;
 		expected<T, E>&& get() &&;
 		expected<T, E>&& get_once() &&;
 
-
+		// Thread-safe
 		void try_cancel();
 		bool is_canceled() const;
 
@@ -88,7 +94,8 @@ namespace nn
 		Scheduler& scheduler() const;
 
 		// Let's R = f(*this). If R is not Task<>, than
-		// returns Task<R, void>, otherwise R
+		// returns Task<R, void>, otherwise R (e.g., task returned from callback).
+		// #TODO: return Task<T, E> when R is expected<T, E>, see comment on function_task.h.
 		template<typename F>
 		auto on_finish(Scheduler& scheduler, F&& f)
 			-> typename detail::OnFinishReturn<F, Task>::type
