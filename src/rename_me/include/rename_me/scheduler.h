@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <memory>
+#include <mutex>
 
 namespace nn
 {
@@ -27,15 +28,13 @@ namespace nn
 		template<typename T, typename E>
 		friend class Task;
 
-		using TaskPtr = std::unique_ptr<detail::TaskBase>;
+		using TaskPtr = std::shared_ptr<detail::TaskBase>;
 
 		void add(TaskPtr task);
-		void remove(detail::TaskBase& task);
 
 	private:
+		std::mutex guard_;
 		std::vector<TaskPtr> tasks_;
-		std::vector<TaskPtr> finished_;
-		std::vector<const detail::TaskBase*> removed_;
 	};
 
 } // namespace nn

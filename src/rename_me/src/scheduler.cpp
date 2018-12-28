@@ -6,6 +6,10 @@
 
 namespace nn
 {
+	namespace
+	{
+		using Lock = std::lock_guard<std::mutex>;
+	} // namespace
 
 	/*explicit*/ Scheduler::Scheduler()
 		: tasks_()
@@ -15,52 +19,35 @@ namespace nn
 	void Scheduler::add(TaskPtr task)
 	{
 		assert(task);
+		Lock _(guard_);
 		tasks_.push_back(std::move(task));
-	}
-
-	void Scheduler::remove(detail::TaskBase& task)
-	{
-		removed_.push_back(&task);
 	}
 
 	void Scheduler::tick()
 	{
-		auto tasks = std::move(tasks_);
-		auto removed = std::move(removed_);
-		std::vector<TaskPtr> finished = std::move(finished_);
+		std::vector<TaskPtr> tasks;
+		{
+			Lock _(guard_);
+			tasks = std::move(tasks_);
+		}
 
 		for (auto& task : tasks)
 		{
 			if (task->tick() != Status::InProgress)
 			{
-				finished.push_back(std::move(task));
 				task = nullptr;
 			}
 		}
 
-		// Delete `removed` from `finished`
-
 		{
 			// Move in-progress tasks back
 			auto it = std::remove_if(std::begin(tasks), std::end(tasks)
-				, [](const TaskPtr& task)
-			{
-				return !task;
-			});
-			tasks_.assign(std::make_move_iterator(std::begin(tasks))
-				, std::make_move_iterator(it));
-		}
-		{
-			// Move removed tasks back
-			auto it = std::remove_if(std::begin(removed), std::end(removed)
-				, [](const detail::TaskBase* task)
-			{
-				return !task;
-			});
-			removed_.assign(std::begin(removed), it);
-		}
+				, [](const TaskPtr& task) { return !task; });
+			tasks.erase(it, std::end(tasks));
 
-		finished_ = std::move(finished);
+			Lock _(guard_);
+			tasks_ = std::move(tasks);
+		}
 	}
 
 } // namespace nn

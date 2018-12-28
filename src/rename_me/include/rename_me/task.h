@@ -39,13 +39,13 @@ namespace nn
 		bool is_successful() const;
 
 	private:
-		static detail::InternalTask<T, E>* make_task(Scheduler& scheduler
-			, std::unique_ptr<ICustomTask<T, E>> task);
+		static std::shared_ptr<detail::InternalTask<T, E>> make_task(
+			Scheduler& scheduler, std::unique_ptr<ICustomTask<T, E>> task);
 
 		void remove();
 
 	private:
-		detail::InternalTask<T, E>* task_;
+		std::shared_ptr<detail::InternalTask<T, E>> task_;
 	};
 
 } // namespace nn
@@ -58,13 +58,13 @@ namespace nn
 namespace nn
 {
 	template<typename T, typename E>
-	/*static*/ detail::InternalTask<T, E>* Task<T, E>::make_task(Scheduler& scheduler
-		, std::unique_ptr<ICustomTask<T, E>> task)
+	/*static*/ std::shared_ptr<detail::InternalTask<T, E>> Task<T, E>::make_task(
+		Scheduler& scheduler, std::unique_ptr<ICustomTask<T, E>> task)
 	{
-		auto impl = std::make_unique<detail::InternalTask<T, E>>(scheduler, std::move(task));
-		auto* naked = impl.get();
-		scheduler.add(std::move(impl));
-		return naked;
+		auto impl = std::make_shared<detail::InternalTask<T, E>>(
+			scheduler, std::move(task));
+		scheduler.add(impl);
+		return impl;
 	}
 
 	template<typename T, typename E>
@@ -82,12 +82,7 @@ namespace nn
 	template<typename T, typename E>
 	void Task<T, E>::remove()
 	{
-		if (task_)
-		{
-			auto& scheduler = task_->scheduler();
-			scheduler.remove(*task_);
-			task_ = nullptr;
-		}
+		task_ = nullptr;
 	}
 
 	template<typename T, typename E>
