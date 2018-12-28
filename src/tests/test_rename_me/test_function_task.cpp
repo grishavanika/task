@@ -3,17 +3,37 @@
 
 using namespace nn;
 
+namespace
+{
+	void CheckFunctionTaskEBOSize()
+	{
+		using detail::FunctionTask;
+		
+		using F = struct Empty { void operator()() const {} };
+		using Args = std::tuple<>;
+		using SmallestFunction = FunctionTask<void, F, Args>;
+
+		struct MinimumFunction final : ICustomTask<void, void>
+		{
+			SmallestFunction::State _;
+		};
+
+		static_assert(sizeof(SmallestFunction) == sizeof(MinimumFunction)
+			, "detail::FunctionTask<> template should use EBO to have minimum "
+			"possible size");
+	}
+} // namespace
+
 TEST(FunctionTask, Function_Is_Executed_Once)
 {
 	Scheduler sch;
 	int calls_count = 0;
 
 	{
-		Task<int> task = make_task(sch
+		Task<void> task = make_task(sch
 			, [&]
 		{
 			++calls_count;
-			return 1;
 		});
 		// No call to tick() yet. Nothing was scheduled
 		ASSERT_TRUE(task.is_in_progress());
@@ -48,12 +68,7 @@ TEST(FunctionTask, Can_Be_Canceled_Before_First_Call_To_Tick)
 {
 	Scheduler sch;
 	int calls_count = 0;
-	Task<int> task = make_task(sch
-		, [&]
-	{
-		++calls_count;
-		return 1;
-	});
+	Task<void> task = make_task(sch, [&] { ++calls_count; });
 
 	task.try_cancel();
 
@@ -78,12 +93,7 @@ TEST(FunctionTask, Cannot_Be_Canceled_After_Call_To_Tick)
 {
 	Scheduler sch;
 	int calls_count = 0;
-	Task<int> task = make_task(sch
-		, [&]
-	{
-		++calls_count;
-		return 1;
-	});
+	Task<void> task = make_task(sch, [&] { ++calls_count; });
 
 	sch.tick();
 	task.try_cancel();

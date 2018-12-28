@@ -16,8 +16,13 @@ namespace nn
 		class FunctionTask;
 
 		template<typename T, typename F, typename... Args>
-		class FunctionTask<T, F, std::tuple<Args...>> : public ICustomTask<T, void>
+		class FunctionTask<T, F, std::tuple<Args...>> final
+			: public ICustomTask<T, void>
+			, private F
+			, private std::tuple<Args...>
+			, private expected<T, void>
 		{
+		public:
 			enum class State : std::uint8_t
 			{
 				None,
@@ -25,30 +30,23 @@ namespace nn
 				Canceled,
 			};
 
-		public:
 			explicit FunctionTask(F&& f, std::tuple<Args...>&& args)
-				: result_()
-				, f_(std::move(f))
-				, args_(std::move(args))
+				: F(std::move(f))
+				, std::tuple<Args...>(std::move(args))
+				, expected<T, void>()
 				, state_(State::None)
 			{
 			}
 
-			virtual void tick() override
+			virtual Status tick() override
 			{
 				if (state_ == State::None)
 				{
 					state_ = State::Invoked;
-					result_ = std::apply(std::move(f_), std::move(args_));
+					call_impl(std::is_same<T, void>());
+					return Status::Successful;
 				}
-			}
-
-			virtual Status status() const override
-			{
-				assert(state_ != State::None);
-				return (state_ == State::Invoked)
-					? Status::Successful
-					: Status::Failed;
+				return Status::Failed;
 			}
 
 			virtual bool cancel() override
@@ -62,13 +60,34 @@ namespace nn
 				return false;
 			}
 
+			expected<T, void>& get()
+			{
+				return static_cast<expected<T, void>&>(*this);
+			}
+
+			void call_impl(std::true_type/*void*/)
+			{
+				std::apply(std::move(f()), std::move(args()));
+			}
+
+			void call_impl(std::false_type/*NOT void*/)
+			{
+				get() = std::apply(std::move(f()), std::move(args()));
+			}
+
+			F& f()
+			{
+				return static_cast<F&>(*this);
+			}
+
+			std::tuple<Args...>& args()
+			{
+				return static_cast<std::tuple<Args...>&>(*this);
+			}
 
 		private:
-			// #TODO: aligned_storage for non-defalt-constructiable things
-			T result_;
-			F f_;
-			std::tuple<Args...> args_;
 			State state_;
+			char alignment_[3];
 		};
 
 	} // namespace detail
@@ -77,6 +96,7 @@ namespace nn
 	// Looks like it depends on std::expected: if it supports references - they can 
 	// be added easily.
 	// #TODO: enable_if only f(args...) is valid expression
+	// #TODO: return Task<T, E> if f(args...) returns expected<T, E>
 	template<typename F, typename... Args>
 	auto make_task(Scheduler& scheduler, F&& f, Args&&... args)
 	{

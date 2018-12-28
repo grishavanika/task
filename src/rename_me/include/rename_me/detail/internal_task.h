@@ -34,6 +34,7 @@ namespace nn
 			void cancel();
 			Status status() const;
 			bool is_canceled() const;
+			expected<T, E>& get();
 
 		private:
 			Scheduler& scheduler_;
@@ -79,8 +80,7 @@ namespace nn
 				canceled_ = task_->cancel();
 			}
 			try_cancel_ = false;
-			task_->tick();
-			last_run_ = task_->status();
+			last_run_ = task_->tick();
 			return last_run_;
 		}
 
@@ -101,5 +101,13 @@ namespace nn
 		{
 			return canceled_;
 		}
+
+		template<typename T, typename E>
+		expected<T, E>& InternalTask<T, E>::get()
+		{
+			assert(status() != Status::InProgress);
+			return task_->get();
+		}
+
 	} // namespace detail
 } // namespace nn

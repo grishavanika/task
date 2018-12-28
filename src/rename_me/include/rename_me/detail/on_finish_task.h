@@ -14,13 +14,14 @@ namespace nn
 	namespace detail
 	{
 		
-		template<typename RootTask, typename ResultTask, typename F>
+		template<typename RootTask, typename ResultTask, typename F, typename IsTask>
 		class OnFinishTask;
 
 		template<typename RootT, typename RootE
 			, typename ResultT, typename ResultE
-			, typename F>
-		class OnFinishTask<Task<RootT, RootE>, Task<ResultT, ResultE>, F>
+			, typename F
+			, typename IsTask>
+		class OnFinishTask<Task<RootT, RootE>, Task<ResultT, ResultE>, F, IsTask> final
 			: public ICustomTask<ResultT, ResultE>
 		{
 		public:
@@ -29,10 +30,9 @@ namespace nn
 
 			struct InvokeResult
 			{
-				// #TODO: variant<invoked, value>
+				// #TODO: variant<invoked_task, value>
 				InvokedTask invoked_task = InvokedTask();
-				ResultT value = ResultT();
-				bool is_task = false;
+				expected<ResultT, void> value;
 				bool invoked = false;
 			};
 
@@ -45,40 +45,27 @@ namespace nn
 			explicit OnFinishTask(RootTask root, F&& f, Invoker invoker)
 				: root_((assert(root), std::move(root)))
 				, f_(std::move(f))
-				, status_(Status::InProgress)
 				, invoker_(invoker)
 				, result_()
 			{
 			}
 
-			virtual void tick() override
+			virtual Status tick() override
 			{
 				if (root_->status() == Status::InProgress)
 				{
-					assert(status_ == Status::InProgress);
-					return;
+					return Status::InProgress;
 				}
 
 				if (result_.invoked)
 				{
-					assert(status_ == Status::InProgress);
-					assert(result_.is_task);
 					assert(result_.invoked_task);
-					status_ = result_.invoked_task->status();
-					return;
+					return result_.invoked_task->status();
 				}
 
 				invoker_(&f_, &root_, &result_);
 				assert(result_.invoked);
-				if (!result_.is_task)
-				{
-					status_ = Status::Successful;
-				}
-			}
-
-			virtual Status status() const override
-			{
-				return status_;
+				return (IsTask() ? Status::InProgress : Status::Successful);
 			}
 
 			virtual bool cancel() override
@@ -87,10 +74,19 @@ namespace nn
 				return false;
 			}
 
+			expected<ResultT, ResultE>& get()
+			{
+				if (IsTask())
+				{
+					return result_.invoked_task->get();
+				}
+				return result_.value;
+			}
+
 		private:
 			RootTask root_;
+			// #TODO: EBO, do better layout
 			F f_;
-			Status status_;
 			Invoker invoker_;
 			InvokeResult result_;
 		};

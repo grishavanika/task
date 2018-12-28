@@ -22,14 +22,14 @@ namespace nn
 		template<typename R>
 		struct OnFinishReturnImpl
 		{
-			static constexpr std::bool_constant<false> is_task{};
+			using is_task = std::bool_constant<false>;
 			using type = Task<R, void>;
 		};
 
 		template<typename T, typename E>
 		struct OnFinishReturnImpl<Task<T, E>>
 		{
-			static constexpr std::bool_constant<true> is_task{};
+			using is_task = std::bool_constant<true>;
 			using type = Task<T, E>;
 		};
 
@@ -54,6 +54,7 @@ namespace nn
 	public:
 		using value_type = T;
 		using error_type = E;
+		using expected = expected<T, E>;
 
 	public:
 		explicit Task(Scheduler& scheduler, std::unique_ptr<ICustomTask<T, E>> task);
@@ -63,13 +64,18 @@ namespace nn
 		Task(const Task& rhs) = delete;
 		Task& operator=(const Task& rhs) = delete;
 
-		// #TODO: because of on_finish() API, we need to accept `const Task& task`
+		// Because of on_finish() API, we need to accept `const Task& task`
 		// to avoid situations when someones move(task) to internal storage and,
-		// hence, ending up with, possibly, 2 Task(s) intances that refer to same
+		// hence, ending up with, possibly, 2 Tasks intances that refer to same
 		// InternalTask. This also avoids ability to call task.on_finish() inside
-		// on_finish callback.
+		// on_finish() callback.
 		// Because of this decision, getters of values of the task should be const,
-		// but return non-const reference so client can get value
+		// but return non-const reference so client can get value.
+		expected& get() const &;
+		expected& get() &;
+		expected&& get() &&;
+		expected&& get_once() &&;
+
 
 		void try_cancel();
 		bool is_canceled() const;
@@ -90,8 +96,9 @@ namespace nn
 		{
 			using FinishReturn = detail::OnFinishReturn<F, Task>;
 			using ReturnTask = typename FinishReturn::type;
+			using IsTask = typename FinishReturn::is_task;
 			using Function = detail::remove_cvref_t<F>;
-			using FinishTask = detail::OnFinishTask<Task, ReturnTask, Function>;
+			using FinishTask = detail::OnFinishTask<Task, ReturnTask, Function, IsTask>;
 			using InvokeResult = typename FinishTask::InvokeResult;
 
 			assert(task_);
@@ -254,8 +261,9 @@ namespace nn
 	{
 		F& f = *static_cast<F*>(erased_f);
 		InternalTaskPtr& self = *static_cast<InternalTaskPtr*>(erased_self);
+		using IsTask = typename Return::is_task;
 
-		invoke_finish<F, Return, Result>(f, Task(self), result, Return::is_task);
+		invoke_finish<F, Return, Result>(f, Task(self), result, IsTask());
 		result->invoked = true;
 	}
 
@@ -266,7 +274,6 @@ namespace nn
 	{
 		auto task = std::move(f)(self);
 		result->invoked_task = task.task_;
-		result->is_task = true;
 	}
 
 	template<typename T, typename E>
@@ -275,7 +282,34 @@ namespace nn
 		, std::false_type/*is_task*/)
 	{
 		result->value = std::move(f)(self);
-		result->is_task = false;
+	}
+
+	template<typename T, typename E>
+	typename Task<T, E>::expected& Task<T, E>::get() const &
+	{
+		assert(task_);
+		return task_->get();
+	}
+
+	template<typename T, typename E>
+	typename Task<T, E>::expected& Task<T, E>::get() &
+	{
+		assert(task_);
+		return task_->get();
+	}
+
+	template<typename T, typename E>
+	typename Task<T, E>::expected&& Task<T, E>::get() &&
+	{
+		assert(task_);
+		return std::move(task_->get());
+	}
+
+	template<typename T, typename E>
+	typename Task<T, E>::expected&& Task<T, E>::get_once() &&
+	{
+		assert(task_);
+		return std::move(task_->get());
 	}
 
 } // namespace nn

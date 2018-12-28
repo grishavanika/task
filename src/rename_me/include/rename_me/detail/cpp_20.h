@@ -9,7 +9,8 @@ namespace nn
 		template<class T>
 		struct remove_cvref
 		{
-			using type = std::remove_cv_t<std::remove_reference_t<T>>;
+			using type = typename std::remove_cv<
+				typename std::remove_reference<T>::type>::type;
 		};
 
 		template< class T >

@@ -39,6 +39,11 @@ TEST(OnFinish, Can_Be_Chained)
 	}
 
 	ASSERT_EQ(&sch2, &task3.scheduler());
-	ASSERT_TRUE(task1.is_finished());
-	ASSERT_TRUE(task2.is_finished());
+	ASSERT_TRUE(task1.is_successful());
+	ASSERT_TRUE(task2.is_successful());
+	ASSERT_TRUE(task3.is_successful());
+
+	ASSERT_EQ(1, task1.get().value());
+	ASSERT_EQ('x', task2.get().value());
+	ASSERT_EQ(2, task3.get().value());
 }

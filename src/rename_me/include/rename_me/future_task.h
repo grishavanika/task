@@ -9,49 +9,42 @@ namespace nn
 {
 	namespace detail
 	{
+		// #TODO: do Task<T, void> if exceptions are disabled
 		template<typename T>
-		class FutureTask : public ICustomTask<T, std::exception_ptr>
+		class FutureTask final : public ICustomTask<T, std::exception_ptr>
 		{
 		public:
 			explicit FutureTask(std::future<T>&& f)
 				: result_()
 				, future_(std::move(f))
-				, status_(Status::InProgress)
 			{
 			}
 
-			virtual void tick() override
+			virtual Status tick() override
 			{
 				if (!future_.valid())
 				{
-					status_ = Status::Failed;
-					return;
+					return Status::Failed;
 				}
 
 				const auto state = future_.wait_for(std::chrono::microseconds(0));
 				const bool in_progress = (state != std::future_status::ready);
 				if (in_progress)
 				{
-					status_ = Status::InProgress;
-					return;
+					return Status::InProgress;
 				}
 
 				// Get results
 				try
 				{
 					result_ = future_.get();
-					status_ = Status::Successful;
+					return Status::Successful;
 				}
 				catch (...)
 				{
-					error_ = std::current_exception();
-					status_ = Status::Failed;
+					result_ = unexpected<std::exception_ptr>(std::current_exception());
+					return Status::Failed;
 				}
-			}
-
-			virtual Status status() const override
-			{
-				return status_;
 			}
 
 			virtual bool cancel() override
@@ -59,11 +52,14 @@ namespace nn
 				return false;
 			}
 
+			virtual expected<T, std::exception_ptr>& get() override
+			{
+				return result_;
+			}
+
 		private:
-			T result_;
-			std::exception_ptr error_;
+			expected<T, std::exception_ptr> result_;
 			std::future<T> future_;
-			Status status_;
 		};
 
 	} // namespace detail
