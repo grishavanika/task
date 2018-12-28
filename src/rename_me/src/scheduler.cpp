@@ -43,10 +43,12 @@ namespace nn
 			// Move in-progress tasks back
 			auto it = std::remove_if(std::begin(tasks), std::end(tasks)
 				, [](const TaskPtr& task) { return !task; });
-			tasks.erase(it, std::end(tasks));
 
 			Lock _(guard_);
-			tasks_ = std::move(tasks);
+			tasks_.reserve(tasks_.size() + tasks.size());
+			tasks_.insert(std::end(tasks_)
+				, std::make_move_iterator(std::begin(tasks))
+				, std::make_move_iterator(it));
 		}
 	}
 
