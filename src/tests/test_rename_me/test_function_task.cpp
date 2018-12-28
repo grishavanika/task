@@ -5,23 +5,20 @@ using namespace nn;
 
 namespace
 {
-	void CheckFunctionTaskEBOSize()
-	{
-		using detail::FunctionTask;
+	using detail::FunctionTask;
 		
-		using F = struct Empty { void operator()() const {} };
-		using Args = std::tuple<>;
-		using SmallestFunction = FunctionTask<void, F, Args>;
+	using F = struct Empty { void operator()() const {} };
+	using Args = std::tuple<>;
+	using SmallestFunction = FunctionTask<void, F, Args>;
 
-		struct MinimumFunction final : ICustomTask<void, void>
-		{
-			SmallestFunction::State _;
-		};
+	struct MinimumFunction : ICustomTask<void, void>
+	{
+		SmallestFunction::State _;
+	};
 
-		static_assert(sizeof(SmallestFunction) == sizeof(MinimumFunction)
-			, "detail::FunctionTask<> template should use EBO to have minimum "
-			"possible size");
-	}
+	static_assert(sizeof(SmallestFunction) == sizeof(MinimumFunction)
+		, "detail::FunctionTask<> template should use EBO to have minimum "
+		"possible size");
 } // namespace
 
 TEST(FunctionTask, Function_Is_Executed_Once)

@@ -74,7 +74,7 @@ namespace nn
 				return false;
 			}
 
-			expected<ResultT, ResultE>& get()
+			virtual expected<ResultT, ResultE>& get() override
 			{
 				if (IsTask())
 				{

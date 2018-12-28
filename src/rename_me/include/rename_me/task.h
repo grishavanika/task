@@ -54,7 +54,6 @@ namespace nn
 	public:
 		using value_type = T;
 		using error_type = E;
-		using expected = expected<T, E>;
 
 	public:
 		explicit Task(Scheduler& scheduler, std::unique_ptr<ICustomTask<T, E>> task);
@@ -71,10 +70,10 @@ namespace nn
 		// on_finish() callback.
 		// Because of this decision, getters of values of the task should be const,
 		// but return non-const reference so client can get value.
-		expected& get() const &;
-		expected& get() &;
-		expected&& get() &&;
-		expected&& get_once() &&;
+		expected<T, E>& get() const &;
+		expected<T, E>& get() &;
+		expected<T, E>&& get() &&;
+		expected<T, E>&& get_once() &&;
 
 
 		void try_cancel();
@@ -285,28 +284,28 @@ namespace nn
 	}
 
 	template<typename T, typename E>
-	typename Task<T, E>::expected& Task<T, E>::get() const &
+	expected<T, E>& Task<T, E>::get() const &
 	{
 		assert(task_);
 		return task_->get();
 	}
 
 	template<typename T, typename E>
-	typename Task<T, E>::expected& Task<T, E>::get() &
+	expected<T, E>& Task<T, E>::get() &
 	{
 		assert(task_);
 		return task_->get();
 	}
 
 	template<typename T, typename E>
-	typename Task<T, E>::expected&& Task<T, E>::get() &&
+	expected<T, E>&& Task<T, E>::get() &&
 	{
 		assert(task_);
 		return std::move(task_->get());
 	}
 
 	template<typename T, typename E>
-	typename Task<T, E>::expected&& Task<T, E>::get_once() &&
+	expected<T, E>&& Task<T, E>::get_once() &&
 	{
 		assert(task_);
 		return std::move(task_->get());

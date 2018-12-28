@@ -60,7 +60,7 @@ namespace nn
 				return false;
 			}
 
-			expected<T, void>& get()
+			virtual expected<T, void>& get() override
 			{
 				return static_cast<expected<T, void>&>(*this);
 			}
