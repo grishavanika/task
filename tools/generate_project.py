@@ -60,7 +60,7 @@ def cmake_win_generator_args(config):
 	args = ['-G', vs_name]
 
 	if config.compiler == Compiler.CLANG:
-		args += ['-T', 'LLVM-vs2014']
+		args += ['-T', 'LLVM']
 
 	if config.vcpkg_path:
 		args += ['-DCMAKE_TOOLCHAIN_FILE={}'.format(config.vcpkg_path)]
