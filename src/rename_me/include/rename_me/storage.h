@@ -25,6 +25,10 @@ namespace nn
 	template<>
 	struct expected<void, void>
 	{
+		bool has_value() const
+		{
+			return true;
+		}
 	};
 
 	template<typename E>

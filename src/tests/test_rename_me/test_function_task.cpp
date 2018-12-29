@@ -5,11 +5,21 @@ using namespace nn;
 
 namespace
 {
+	// Check that implementation has minimum possible size
+	// of internal stuff when function is "zero" size with no
+	// arguments to store
 	using detail::FunctionTask;
-		
+	using detail::FunctionTaskReturn;
+
 	using F = struct Empty { void operator()() const {} };
 	using Args = std::tuple<>;
-	using SmallestFunction = FunctionTask<void, F, Args>;
+
+	using SmallestFunction = FunctionTask<
+		FunctionTaskReturn<F, Args>
+		, ICustomTask<void, void>
+		, expected<void, void>
+		, F
+		, Args>;
 
 	struct MinimumFunction : ICustomTask<void, void>
 	{
@@ -19,6 +29,42 @@ namespace
 	static_assert(sizeof(SmallestFunction) == sizeof(MinimumFunction)
 		, "detail::FunctionTask<> template should use EBO to have minimum "
 		"possible size");
+
+	// Check that returned type has proper Task<> depending on what
+	// functor returns
+	template<typename T, typename F>
+	struct ReturnCheck : std::is_same<T
+		, decltype(make_task(
+			std::declval<Scheduler&>(), std::declval<F>()))>
+	{
+	};
+
+	static_assert(ReturnCheck<
+		Task<void, void>
+		, void (*)()>::value
+		, "Task<void> should be returned when using void f() callback");
+
+	static_assert(ReturnCheck<
+		Task<int, void>
+		, int (*)()>::value
+		, "Task<int> should be returned when using int f() callback");
+
+	static_assert(ReturnCheck<
+		Task<int, int>
+		, expected<int, int> (*)()>::value
+		, "Task<int, int> should be returned when using expected<int, int> f() callback");
+
+	// Reference returns are decay-ed. At least now
+	static_assert(ReturnCheck<
+		Task<int>
+		, int& (*)()>::value
+		, "Task<int> should be returned when using int& f() callback");
+
+	static_assert(ReturnCheck<
+		Task<int, int>
+		, expected<int, int>& (*)()>::value
+		, "Task<int, int> should be returned when using expected<int, int>& f() callback");
+
 } // namespace
 
 TEST(FunctionTask, Function_Is_Executed_Once)
@@ -106,4 +152,69 @@ TEST(FunctionTask, Cannot_Be_Canceled_After_Call_To_Tick)
 	ASSERT_FALSE(task.is_canceled());
 	ASSERT_TRUE(task.is_finished());
 	ASSERT_EQ(1, calls_count);
+}
+
+TEST(FunctionTask, Move_Only_Return)
+{
+	Scheduler sch;
+	Task<std::unique_ptr<int>> task = make_task(sch
+		, []
+	{
+		return std::make_unique<int>(11);
+	});
+	sch.tick();
+	ASSERT_TRUE(task.is_successful());
+	ASSERT_TRUE(task.get().has_value());
+	ASSERT_NE(nullptr, task.get().value());
+	ASSERT_EQ(11, *task.get_once().value());
+}
+
+TEST(FunctionTask, Failed_Expected_Return_Fails_Task)
+{
+	Scheduler sch;
+	Task<int, int> task = make_task(sch, 
+		[]
+	{
+		// Fail task
+		using error = ::nn::unexpected<int>;
+		return expected<int, int>(error(1));
+	});
+
+	sch.tick();
+	ASSERT_TRUE(task.is_failed());
+	ASSERT_FALSE(task.get().has_value());
+	ASSERT_EQ(1, task.get().error());
+}
+
+TEST(FunctionTask, Successful_Expected_Returns_Task_With_Success)
+{
+	Scheduler sch;
+	Task<int, int> task = make_task(sch,
+		[]
+	{
+		// Ok
+		return expected<int, int>(2);
+	});
+
+	sch.tick();
+	ASSERT_TRUE(task.is_successful());
+	ASSERT_TRUE(task.get().has_value());
+	ASSERT_EQ(2, task.get().value());
+}
+
+TEST(FunctionTask, Forwards_Args_To_The_Functor)
+{
+	Scheduler sch;
+	Task<std::unique_ptr<int>> task = make_task(sch,
+		[](std::unique_ptr<int> p)
+	{
+		return p;
+	}
+		, std::make_unique<int>(42));
+
+	sch.tick();
+	ASSERT_TRUE(task.is_successful());
+	ASSERT_TRUE(task.get().has_value());
+	ASSERT_NE(nullptr, task.get().value());
+	ASSERT_EQ(42, *task.get().value());
 }

@@ -19,6 +19,7 @@ namespace nn
 		template<typename T, typename E>
 		class InternalTask;
 
+		// on_finish() helpers
 		template<typename R>
 		struct OnFinishReturnImpl
 		{
@@ -33,15 +34,14 @@ namespace nn
 			using type = Task<T, E>;
 		};
 
-		template<typename F, typename T
+		template<typename F, typename Task
 			, typename R = remove_cvref_t<
-				decltype(std::declval<F>()(std::declval<const T&>()))>>
-		struct OnFinishReturn : public OnFinishReturnImpl<R>
+				decltype(std::declval<F>()(std::declval<const Task&>()))>>
+		struct OnFinishReturn : OnFinishReturnImpl<R>
 		{
 		};
 
-		// Help MSVC to handle trailing return type in case
-		// of out-of-class definition of the on_finish() function
+		// Help MSVC to out-of-class definition of the on_finish() function
 		template<typename F, typename T>
 		using OnFinishReturnT = typename OnFinishReturn<F, T>::type;
 
@@ -59,6 +59,7 @@ namespace nn
 	public:
 		using value_type = T;
 		using error_type = E;
+		using value = expected<T, E>;
 
 	public:
 		explicit Task(Scheduler& scheduler, std::unique_ptr<ICustomTask<T, E>> task);
@@ -83,8 +84,8 @@ namespace nn
 		//		(effect of 2nd case)
 		expected<T, E>& get() const &;
 		expected<T, E>& get() &;
-		expected<T, E>&& get() &&;
-		expected<T, E>&& get_once() &&;
+		expected<T, E> get() &&;
+		expected<T, E> get_once();
 
 		// Thread-safe
 		void try_cancel();
@@ -292,14 +293,14 @@ namespace nn
 	}
 
 	template<typename T, typename E>
-	expected<T, E>&& Task<T, E>::get() &&
+	expected<T, E> Task<T, E>::get() &&
 	{
 		assert(task_);
 		return std::move(task_->get());
 	}
 
 	template<typename T, typename E>
-	expected<T, E>&& Task<T, E>::get_once() &&
+	expected<T, E> Task<T, E>::get_once()
 	{
 		assert(task_);
 		return std::move(task_->get());
