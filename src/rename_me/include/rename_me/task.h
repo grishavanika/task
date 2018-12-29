@@ -40,6 +40,11 @@ namespace nn
 		{
 		};
 
+		// Help MSVC to handle trailing return type in case
+		// of out-of-class definition of the on_finish() function
+		template<typename F, typename T>
+		using OnFinishReturnT = typename OnFinishReturn<F, T>::type;
+
 	} // namespace detail
 
 	template<typename T = void, typename E = void>
@@ -97,32 +102,14 @@ namespace nn
 		// returns Task<R, void>, otherwise R (e.g., task returned from callback).
 		// #TODO: return Task<T, E> when R is expected<T, E>, see comment on function_task.h.
 		template<typename F>
-		auto on_finish(Scheduler& scheduler, F&& f)
-			-> typename detail::OnFinishReturn<F, Task>::type
-		{
-			using FinishReturn = detail::OnFinishReturn<F, Task>;
-			using ReturnTask = typename FinishReturn::type;
-			using IsTask = typename FinishReturn::is_task;
-			using Function = detail::remove_cvref_t<F>;
-			using FinishTask = detail::OnFinishTask<Task, ReturnTask, Function, IsTask>;
-			using InvokeResult = typename FinishTask::InvokeResult;
-
-			assert(task_);
-			auto invoker = &Task::on_finish_invoker<Function, FinishReturn, InvokeResult>;
-			auto task = std::make_unique<FinishTask>(
-				task_, std::forward<F>(f), invoker);
-			return ReturnTask(scheduler, std::move(task));
-		}
+		detail::OnFinishReturnT<F, Task>
+			on_finish(Scheduler& scheduler, F&& f);
 
 		// Executes on_finish() with this task's scheduler
 		template<typename F>
 		auto on_finish(F&& f)
 			-> decltype(on_finish(
-				std::declval<Scheduler&>(), std::forward<F>(f)))
-		{
-			assert(task_);
-			return on_finish(task_->scheduler(), std::forward<F>(f));
-		}
+				std::declval<Scheduler&>(), std::forward<F>(f)));
 
 	private:
 		explicit Task(InternalTaskPtr task);
@@ -316,6 +303,35 @@ namespace nn
 	{
 		assert(task_);
 		return std::move(task_->get());
+	}
+
+	template<typename T, typename E>
+	template<typename F>
+	auto Task<T, E>::on_finish(F&& f)
+		-> decltype(on_finish(
+			std::declval<Scheduler&>(), std::forward<F>(f)))
+	{
+		assert(task_);
+		return on_finish(task_->scheduler(), std::forward<F>(f));
+	}
+
+	template<typename T, typename E>
+	template<typename F>
+	detail::OnFinishReturnT<F, Task<T, E>>
+		Task<T, E>::on_finish(Scheduler& scheduler, F&& f)
+	{
+		using FinishReturn = detail::OnFinishReturn<F, Task>;
+		using ReturnTask = typename FinishReturn::type;
+		using IsTask = typename FinishReturn::is_task;
+		using Function = detail::remove_cvref_t<F>;
+		using FinishTask = detail::OnFinishTask<Task, ReturnTask, Function, IsTask>;
+		using InvokeResult = typename FinishTask::InvokeResult;
+
+		assert(task_);
+		auto invoker = &Task::on_finish_invoker<Function, FinishReturn, InvokeResult>;
+		auto task = std::make_unique<FinishTask>(
+			task_, std::forward<F>(f), invoker);
+		return ReturnTask(scheduler, std::move(task));
 	}
 
 } // namespace nn
