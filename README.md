@@ -45,7 +45,8 @@ int main()
 5. Add supporting API (like, `when_all(tasks...).on_finis(...)`).
 6. More tests. Ensure thread-safe stuff.
 7. Polish & extend function_task.h (see comments).
-8. Polish memoty layout for internal tasks.
+8. Polish memory layout for internal tasks.
+9. Default (thread-local ?) Scheduler's ?
 
 # Compilers
 
