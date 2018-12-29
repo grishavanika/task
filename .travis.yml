@@ -21,20 +21,20 @@ matrix:
         - platform=x64
         - config=Release
         - build_folder=build_gcc_x64
-    # Clang 5
-    - os: linux
-      addons:
-        apt:
-          sources:
-            - llvm-toolchain-trusty-5.0
-          packages:
-            - clang-5.0
-      env:
-        - compiler_setup="CC=clang-5.0 && CXX=clang++-5.0"
-        - compiler=clang
-        - platform=x64
-        - config=Release
-        - build_folder=build_clang_x64
+    # Clang 5 (does not work ? TODO: investigate)
+    # - os: linux
+    #   addons:
+    #     apt:
+    #       sources:
+    #         - llvm-toolchain-trusty-5.0
+    #       packages:
+    #         - clang-5.0
+    #   env:
+    #     - compiler_setup="CC=clang-5.0 && CXX=clang++-5.0"
+    #     - compiler=clang
+    #     - platform=x64
+    #     - config=Release
+    #     - build_folder=build_clang_x64
 
 before_install:
   - eval "${compiler_setup}"

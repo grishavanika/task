@@ -3,7 +3,8 @@ image: Visual Studio 2017
 
 environment:
   matrix:
-    - compiler: clang
+	# Not integrated well with VS 17 (e.g., missing LLVM toolset)
+    #- compiler: clang
     - compiler: cl
     - compiler: gcc
 
@@ -33,5 +34,5 @@ build_script:
   - cd ../build_%compiler%_%platform%
   - cmake --build . --config %configuration%
 
-test_script:
-  - ctest -C %configuration% --verbose
+#test_script:
+#  - ctest -C %configuration% --verbose
