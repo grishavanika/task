@@ -3,7 +3,7 @@ image: Visual Studio 2017
 
 environment:
   matrix:
-	# Not integrated well with VS 17 (e.g., missing LLVM toolset)
+    # Not integrated well with VS 17 (e.g., missing LLVM toolset)
     #- compiler: clang
     - compiler: cl
     - compiler: gcc
