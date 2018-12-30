@@ -164,3 +164,83 @@ TEST(OnFinish, On_Fail_Is_Successful_When_Task_Finish_With_Fail)
 	ASSERT_FALSE(on_fail.is_canceled());
 	ASSERT_TRUE(fail_invoked);
 }
+
+TEST(OnFinish, On_Success_Is_Successful_When_Task_Finish_With_Success)
+{
+	Scheduler sch;
+	Task<void> success = make_task(sch, [] {});
+
+	bool success_invoked = false;
+	Task<void> on_success = success.on_success([&](const Task<void>&)
+	{
+		success_invoked = true;
+	});
+
+	sch.tick();
+	ASSERT_TRUE(success.is_successful());
+	ASSERT_TRUE(on_success.is_successful());
+	ASSERT_FALSE(on_success.is_canceled());
+	ASSERT_TRUE(success_invoked);
+}
+
+TEST(OnFinish, On_Success_Is_Failed_And_Canceled_When_Task_Finish_With_Fail)
+{
+	Scheduler sch;
+	Task<int, int> failed = make_task(sch
+		, []
+	{
+		using error = ::nn::unexpected<int>;
+		return expected<int, int>(error(1));
+	});
+
+	bool success_invoked = false;
+	Task<void> on_success = failed.on_success([&](const Task<int, int>&)
+	{
+		success_invoked = true;
+	});
+
+	sch.tick();
+	ASSERT_TRUE(failed.is_failed());
+	ASSERT_TRUE(on_success.is_canceled());
+	ASSERT_TRUE(on_success.is_failed());
+	ASSERT_FALSE(success_invoked);
+}
+
+TEST(OnFinish, On_Cancel_Is_Successful_When_Task_Is_Canceled)
+{
+	Scheduler sch;
+	Task<void> task = make_task(sch, [&] { });
+	task.try_cancel();
+
+	bool cancel_invoked = false;
+	Task<void> on_cancel = task.on_cancel([&](const Task<void>&)
+	{
+		cancel_invoked = true;
+	});
+
+	sch.tick();
+
+	ASSERT_TRUE(task.is_canceled());
+	ASSERT_TRUE(on_cancel.is_successful());
+	ASSERT_FALSE(on_cancel.is_canceled());
+	ASSERT_TRUE(cancel_invoked);
+}
+
+TEST(OnFinish, On_Cancel_Is_Failed_And_Canceled_When_Task_Is_NOT_Canceled)
+{
+	Scheduler sch;
+	Task<void> task = make_task(sch, [&] {});
+
+	bool cancel_invoked = false;
+	Task<void> on_cancel = task.on_cancel([&](const Task<void>&)
+	{
+		cancel_invoked = true;
+	});
+
+	sch.tick();
+
+	ASSERT_FALSE(task.is_canceled());
+	ASSERT_TRUE(on_cancel.is_failed());
+	ASSERT_TRUE(on_cancel.is_canceled());
+	ASSERT_FALSE(cancel_invoked);
+}

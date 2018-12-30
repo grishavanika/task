@@ -94,6 +94,26 @@ namespace nn
 			-> decltype(on_fail(
 				std::declval<Scheduler&>(), std::forward<F>(f)));
 
+		template<typename F>
+		auto on_success(Scheduler& scheduler, F&& f)
+			-> decltype(on_finish(scheduler, std::forward<F>(f)));
+
+		// Executes on_success() with this task's scheduler
+		template<typename F>
+		auto on_success(F&& f)
+			-> decltype(on_success(
+				std::declval<Scheduler&>(), std::forward<F>(f)));
+
+		template<typename F>
+		auto on_cancel(Scheduler& scheduler, F&& f)
+			-> decltype(on_finish(scheduler, std::forward<F>(f)));
+
+		// Executes on_cancel() with this task's scheduler
+		template<typename F>
+		auto on_cancel(F&& f)
+			-> decltype(on_cancel(
+				std::declval<Scheduler&>(), std::forward<F>(f)));
+
 	private:
 		explicit Task(InternalTaskPtr task);
 
@@ -341,6 +361,50 @@ namespace nn
 	{
 		assert(task_);
 		return on_fail(task_->scheduler(), std::forward<F>(f));
+	}
+
+	template<typename T, typename E>
+	template<typename F>
+	auto Task<T, E>::on_success(Scheduler& scheduler, F&& f)
+		-> decltype(on_finish(scheduler, std::forward<F>(f)))
+	{
+		return on_finish_impl(scheduler, std::forward<F>(f)
+			, [](const Task& self)
+		{
+			return self.is_successful();
+		});
+	}
+
+	template<typename T, typename E>
+	template<typename F>
+	auto Task<T, E>::on_success(F&& f)
+		-> decltype(on_success(
+			std::declval<Scheduler&>(), std::forward<F>(f)))
+	{
+		assert(task_);
+		return on_success(task_->scheduler(), std::forward<F>(f));
+	}
+
+	template<typename T, typename E>
+	template<typename F>
+	auto Task<T, E>::on_cancel(Scheduler& scheduler, F&& f)
+		-> decltype(on_finish(scheduler, std::forward<F>(f)))
+	{
+		return on_finish_impl(scheduler, std::forward<F>(f)
+			, [](const Task& self)
+		{
+			return self.is_canceled();
+		});
+	}
+
+	template<typename T, typename E>
+	template<typename F>
+	auto Task<T, E>::on_cancel(F&& f)
+		-> decltype(on_cancel(
+			std::declval<Scheduler&>(), std::forward<F>(f)))
+	{
+		assert(task_);
+		return on_cancel(task_->scheduler(), std::forward<F>(f));
 	}
 
 } // namespace nn

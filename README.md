@@ -69,25 +69,6 @@ if .try_cancel() was called when "Inner task" is in progress, it should
 invoke .try_cancel() on it. And, if successful (e.g., inner task is_canceled() == true),
 task.is_canceled() should also be true.
 
-11. Add task.on_success(), task.on_fail() and task.on_cancel() API similar to task.on_finish().
-on_success() callback should be invoked only if task is successful. In case it's not,
-returned from on_success() Task<> should be failed and canceled (since we can't set
-proper user-defined error).
-```
-	Task<int> success = task.on_success([](const Task<int, int>& root_task)
-	{
-		return 1;
-	});
-```
-In case root_task is failed, callback should not be called and next should be hold:
-```
-assert(success.is_finished());
-assert(success.is_failed());
-assert(success.is_canceled());
-expected<int, void>& data = success.get();
-assert(data does not hold value or error, e.g., was not constructed);
-```
-
 # Compilers
 
 TODO: some C++ 17 stuff is used, can be back-ported to C++ 11
