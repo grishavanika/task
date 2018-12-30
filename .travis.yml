@@ -49,7 +49,5 @@ script:
   # TODO: let's generate_project.py gives the name to us
   - cd ../$build_folder
   - cmake --build . --config $config
-  #- cmake -DBUILD_TYPE=$config -P cmake_install.cmake
-  # TODO: investigate why it can't find tests ONLY in Travis environment
-  # - ctest -C $config --verbose
+  - ctest -C $config --verbose
 

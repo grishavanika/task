@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <mutex>
+#include <atomic>
 
 namespace nn
 {
@@ -23,6 +24,8 @@ namespace nn
 		Scheduler& operator=(const Scheduler& rhs) = delete;
 
 		void tick();
+		std::size_t tasks_count() const;
+		bool has_tasks() const;
 
 	private:
 		template<typename T, typename E>
@@ -35,6 +38,8 @@ namespace nn
 	private:
 		std::mutex guard_;
 		std::vector<TaskPtr> tasks_;
+		std::atomic<std::size_t> tasks_count_;
+		std::atomic<std::size_t> tick_tasks_count_;
 	};
 
 } // namespace nn

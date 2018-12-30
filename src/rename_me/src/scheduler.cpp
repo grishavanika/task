@@ -13,6 +13,8 @@ namespace nn
 
 	/*explicit*/ Scheduler::Scheduler()
 		: tasks_()
+		, tasks_count_(0)
+		, tick_tasks_count_(0)
 	{
 	}
 
@@ -21,6 +23,17 @@ namespace nn
 		assert(task);
 		Lock _(guard_);
 		tasks_.push_back(std::move(task));
+		tasks_count_ = tasks_.size();
+	}
+
+	std::size_t Scheduler::tasks_count() const
+	{
+		return (tasks_count_ + tick_tasks_count_);
+	}
+
+	bool Scheduler::has_tasks() const
+	{
+		return (tasks_count() > 0);
 	}
 
 	void Scheduler::tick()
@@ -29,6 +42,8 @@ namespace nn
 		{
 			Lock _(guard_);
 			tasks = std::move(tasks_);
+			tick_tasks_count_ = tasks.size();
+			tasks_count_ = 0;
 		}
 
 		for (auto& task : tasks)
@@ -49,6 +64,8 @@ namespace nn
 			tasks_.insert(std::end(tasks_)
 				, std::make_move_iterator(std::begin(tasks))
 				, std::make_move_iterator(it));
+			tick_tasks_count_ = 0;
+			tasks_count_ = tasks_.size();
 		}
 	}
 

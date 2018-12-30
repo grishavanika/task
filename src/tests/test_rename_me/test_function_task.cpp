@@ -8,47 +8,38 @@ namespace
 
 	// Check that returned type has proper Task<> depending on what
 	// functor returns
-	template<typename T, typename F>
-	struct ReturnCheck : std::is_same<T
-		, decltype(make_task(
-			std::declval<Scheduler&>(), std::declval<F>()))>
+	template<typename R, typename ExpectedTask>
+	struct ReturnCheck
 	{
+		static R functor();
+
+		using IsSame = std::is_same<ExpectedTask
+			, decltype(make_task(
+				std::declval<Scheduler&>(), &ReturnCheck::functor))>;
+
+		static constexpr bool value = IsSame::value;
 	};
 
-	static_assert(ReturnCheck<
-		Task<void, void>
-		, void (*)()>::value
+	static_assert(ReturnCheck<void, Task<void, void>>::value
 		, "Task<void> should be returned when using void f() callback");
 
-	static_assert(ReturnCheck<
-		Task<int, void>
-		, int (*)()>::value
+	static_assert(ReturnCheck<int, Task<int, void>>::value
 		, "Task<int> should be returned when using int f() callback");
 
-	static_assert(ReturnCheck<
-		Task<int, int>
-		, expected<int, int> (*)()>::value
+	static_assert(ReturnCheck<expected<int, int>, Task<int, int>>::value
 		, "Task<int, int> should be returned when using expected<int, int> f() callback");
 
-	static_assert(ReturnCheck<
-		Task<char, char>
-		, Task<char, char> (*)()>::value
-		, "Task<char, charint> should be returned when using Task<char, char> f() callback");
+	static_assert(ReturnCheck<Task<char, char>, Task<char, char>>::value
+		, "Task<char, char> should be returned when using Task<char, char> f() callback");
 
 	// Reference returns are decay-ed. At least now
-	static_assert(ReturnCheck<
-		Task<int>
-		, int& (*)()>::value
+	static_assert(ReturnCheck<int&, Task<int>>::value
 		, "Task<int> should be returned when using int& f() callback");
 
-	static_assert(ReturnCheck<
-		Task<int, int>
-		, expected<int, int>& (*)()>::value
+	static_assert(ReturnCheck<expected<int, int>&, Task<int, int>>::value
 		, "Task<int, int> should be returned when using expected<int, int>& f() callback");
 
-	static_assert(ReturnCheck<
-		Task<char, char>
-		, Task<char, char>& (*)()>::value
+	static_assert(ReturnCheck<Task<char, char>&, Task<char, char>>::value
 		, "Task<char, charint> should be returned when using Task<char, char>& f() callback");
 
 } // namespace

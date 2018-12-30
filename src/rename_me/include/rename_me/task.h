@@ -1,7 +1,7 @@
 #pragma once
 #include <rename_me/custom_task.h>
 #include <rename_me/detail/cpp_20.h>
-#include <rename_me/detail/on_finish_task.h>
+#include <rename_me/detail/function_task_impl.h>
 
 #include <memory>
 #include <cassert>
@@ -13,39 +13,6 @@ namespace nn
 
 	template<typename T, typename E>
 	class Task;
-
-	namespace detail
-	{
-		template<typename T, typename E>
-		class InternalTask;
-
-		// on_finish() helpers
-		template<typename R>
-		struct OnFinishReturnImpl
-		{
-			using is_task = std::bool_constant<false>;
-			using type = Task<R, void>;
-		};
-
-		template<typename T, typename E>
-		struct OnFinishReturnImpl<Task<T, E>>
-		{
-			using is_task = std::bool_constant<true>;
-			using type = Task<T, E>;
-		};
-
-		template<typename F, typename Task
-			, typename R = remove_cvref_t<
-				decltype(std::declval<F>()(std::declval<const Task&>()))>>
-		struct OnFinishReturn : OnFinishReturnImpl<R>
-		{
-		};
-
-		// Help MSVC to out-of-class definition of the on_finish() function
-		template<typename F, typename T>
-		using OnFinishReturnT = typename OnFinishReturn<F, T>::type;
-
-	} // namespace detail
 
 	template<typename T = void, typename E = void>
 	class Task
@@ -70,7 +37,7 @@ namespace nn
 		Task& operator=(const Task& rhs) = delete;
 
 		// Because of on_finish() API, we need to accept `const Task& task`
-		// to avoid situations when someones move(task) to internal storage and,
+		// to avoid situations when someones std::move(task) to internal storage and,
 		// hence, ending up with, possibly, 2 Tasks intances that refer to same
 		// InternalTask. This also avoids ability to call task.on_finish() inside
 		// on_finish() callback.
@@ -99,11 +66,16 @@ namespace nn
 
 		Scheduler& scheduler() const;
 
-		// Let's R = f(*this). If R is not Task<>, than
-		// returns Task<R, void>, otherwise R (e.g., task returned from callback).
-		// #TODO: return Task<T, E> when R is expected<T, E>, see comment on function_task.h.
+		// Let's R = f(*this). If R is:
+		//  1. Task<U, O> then returns Task<U, O>.
+		//     Returned task will reflect state of returned from functor task.
+		//  2. expected<U, O> then returns Task<U, O>.
+		//     Returned task will reflect status and value of returned
+		//     from functor expected<> (e.g., will be failed if expected contains error).
+		//  3. U (some type that is not Task<> or expected<>)
+		//     then returns Task<U, void> with immediate success status.
 		template<typename F>
-		detail::OnFinishReturnT<F, Task>
+		detail::FunctionTaskReturnT<F, std::tuple<const Task<T, E>&>>
 			on_finish(Scheduler& scheduler, F&& f);
 
 		// Executes on_finish() with this task's scheduler
@@ -308,31 +280,52 @@ namespace nn
 
 	template<typename T, typename E>
 	template<typename F>
+	detail::FunctionTaskReturnT<F, std::tuple<const Task<T, E>&>>
+		Task<T, E>::on_finish(Scheduler& scheduler, F&& f)
+	{
+		using Function = detail::remove_cvref_t<F>;
+		using FunctionTaskReturn = detail::FunctionTaskReturn<F, std::tuple<const Task&>>;
+		using ReturnTask = typename FunctionTaskReturn::type;
+
+		struct Invoker :
+			private Function
+		{
+			explicit Invoker(Function&& f, InternalTaskPtr t)
+				: Function(std::move(f))
+				, task(std::move(t))
+			{
+			}
+
+			auto invoke()
+			{
+				auto& f = static_cast<Function&>(*this);
+				return std::move(f)(Task(task));
+			}
+
+			bool wait() const
+			{
+				return (task->status() == Status::InProgress);
+			}
+
+			InternalTaskPtr task;
+		};
+
+		using FinishTask = detail::FunctionTask<FunctionTaskReturn, Invoker>;
+
+		assert(task_);
+		auto task = std::make_unique<FinishTask>(
+			Invoker(std::forward<F>(f), task_));
+		return ReturnTask(scheduler, std::move(task));
+	}
+
+	template<typename T, typename E>
+	template<typename F>
 	auto Task<T, E>::on_finish(F&& f)
 		-> decltype(on_finish(
 			std::declval<Scheduler&>(), std::forward<F>(f)))
 	{
 		assert(task_);
 		return on_finish(task_->scheduler(), std::forward<F>(f));
-	}
-
-	template<typename T, typename E>
-	template<typename F>
-	detail::OnFinishReturnT<F, Task<T, E>>
-		Task<T, E>::on_finish(Scheduler& scheduler, F&& f)
-	{
-		using FinishReturn = detail::OnFinishReturn<F, Task>;
-		using ReturnTask = typename FinishReturn::type;
-		using IsTask = typename FinishReturn::is_task;
-		using Function = detail::remove_cvref_t<F>;
-		using FinishTask = detail::OnFinishTask<Task, ReturnTask, Function, IsTask>;
-		using InvokeResult = typename FinishTask::InvokeResult;
-
-		assert(task_);
-		auto invoker = &Task::on_finish_invoker<Function, FinishReturn, InvokeResult>;
-		auto task = std::make_unique<FinishTask>(
-			task_, std::forward<F>(f), invoker);
-		return ReturnTask(scheduler, std::move(task));
 	}
 
 } // namespace nn

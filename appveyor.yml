@@ -34,5 +34,5 @@ build_script:
   - cd ../build_%compiler%_%platform%
   - cmake --build . --config %configuration%
 
-#test_script:
-#  - ctest -C %configuration% --verbose
+test_script:
+  - ctest -C %configuration% --verbose
