@@ -42,6 +42,39 @@ namespace
 	static_assert(ReturnCheck<Task<char, char>&, Task<char, char>>::value
 		, "Task<char, charint> should be returned when using Task<char, char>& f() callback");
 
+	struct TestTask : ICustomTask<void, void>
+	{
+		explicit TestTask(Status& status, bool& canceled)
+			: status_(status)
+			, canceled_(canceled)
+		{
+		}
+
+		virtual State tick(bool cancel_requested) override
+		{
+			if (cancel_requested)
+			{
+				canceled_ = true;
+				return State(Status::Failed, canceled_);
+			}
+			return status_;
+		}
+
+		virtual expected<void, void>& get() override
+		{
+			return dummy_;
+		}
+
+		Status& status_;
+		bool& canceled_;
+		expected<void, void> dummy_;
+	};
+
+	Task<> make_test_task(Scheduler& sch, Status& status, bool& canceled)
+	{
+		return Task<>(sch, std::make_unique<TestTask>(status, canceled));
+	}
+
 } // namespace
 
 TEST(FunctionTask, Function_Is_Executed_Once)
@@ -236,4 +269,31 @@ TEST(FunctionTask, Successful_Task_Returns_Task_With_Success)
 	ASSERT_TRUE(task.is_successful());
 	ASSERT_TRUE(task.get().has_value());
 	ASSERT_EQ(2, task.get().value());
+}
+
+TEST(FunctionTask, Cancel_Requested_For_Inner_Task)
+{
+	Scheduler sch;
+
+	Status status = Status::InProgress;
+	bool canceled = false;
+	bool invoked = false;
+	Task<> task = make_task(sch
+		, [&]
+	{
+		invoked = true;
+		return make_test_task(sch, status, canceled);
+	});
+
+	ASSERT_FALSE(invoked);
+	sch.tick();
+	ASSERT_TRUE(invoked);
+	ASSERT_EQ(status, task.status());
+
+	task.try_cancel();
+	sch.tick();
+	sch.tick();
+	ASSERT_EQ(Status::Failed, task.status());
+	ASSERT_TRUE(canceled);
+	ASSERT_TRUE(task.is_canceled());
 }

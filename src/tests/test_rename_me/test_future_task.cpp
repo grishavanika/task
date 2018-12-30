@@ -30,3 +30,41 @@ TEST(FutureTask, Can_Be_Constructed_From_Async)
 	ASSERT_TRUE(task.get().has_value());
 	ASSERT_EQ(short(3 * 2), task.get().value());
 }
+
+TEST(FutureTask, Maintains_Proper_Status_On_Success)
+{
+	Scheduler sch;
+	std::promise<int> p;
+	using FutureTask = Task<int, std::exception_ptr>;
+
+	FutureTask task = make_task(sch, p.get_future());
+	sch.tick();
+	ASSERT_TRUE(task.is_in_progress());
+	p.set_value(1);
+	sch.tick();
+	ASSERT_TRUE(task.is_successful());
+	ASSERT_EQ(1, task.get().value());
+}
+
+TEST(FutureTask, Maintains_Proper_Status_On_Fail)
+{
+	Scheduler sch;
+	std::promise<int> p;
+	using FutureTask = Task<int, std::exception_ptr>;
+
+	FutureTask task = make_task(sch, p.get_future());
+	sch.tick();
+	ASSERT_TRUE(task.is_in_progress());
+	p.set_exception(std::make_exception_ptr(1));
+	sch.tick();
+	ASSERT_TRUE(task.is_failed());
+
+	try
+	{
+		std::rethrow_exception(task.get().error());
+	}
+	catch (int e)
+	{
+		ASSERT_EQ(1, e);
+	}
+}

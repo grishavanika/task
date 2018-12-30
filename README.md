@@ -40,34 +40,11 @@ int main()
 
 1. Reduce memory usage. Think about custom allocators.
 2. How Scheduler can be customized ?
-3. Add tasks_count() to Scheduler's API.
 4. Unify nn::expected<> API to be consistent.
 5. Add supporting API (like, `when_all(tasks...).on_finis(...)`).
 6. More tests. Ensure thread-safe stuff.
-7. Polish & extend function_task.h (see comments).
 8. Polish memory layout for internal tasks.
 9. Default (thread-local ?) Scheduler's ?
-10. *Important*. Propagate cancel() (with is_canceled()) to function's task continuation. E.g.:
-```
-	Scheduler sch;
-	Task<int> task = make_task(sch
-		, [&sch]
-	{
-		// Inner task
-		return make_task(sch
-			, []
-		{
-			return 1;
-		});
-	});
-	sch.tick();
-	// ...
-	task.try_cancel();
-```
-
-if .try_cancel() was called when "Inner task" is in progress, it should
-invoke .try_cancel() on it. And, if successful (e.g., inner task is_canceled() == true),
-task.is_canceled() should also be true.
 
 # Compilers
 

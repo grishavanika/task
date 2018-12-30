@@ -86,7 +86,7 @@ namespace nn
 			using IsValueVoid = std::is_same<
 				typename Return::type::value_type, void>;
 			using IsApplyVoid = std::integral_constant<bool
-				, !IsExpected::value && IsValueVoid::value>;
+				, !IsExpected::value && !IsTask::value && IsValueVoid::value>;
 			// Workaround for "broken"/temporary expected<void, void> we have now 
 			using IsVoidExpected = std::integral_constant<bool
 				, IsExpected::value && IsValueVoid::value>;
