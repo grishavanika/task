@@ -171,7 +171,7 @@ namespace nn
 			void call_impl(std::true_type/*f(...) is void*/)
 			{
 				using Expected = typename Return::expected_type;
-				new(std::addressof(value_)) Value(Expected());
+				new(static_cast<void*>(std::addressof(value_))) Value(Expected());
 				value_set_ = true;
 				assert(!IsTask()
 					&& "void f() should construct expected<void, ...> return");
@@ -183,7 +183,7 @@ namespace nn
 				// f() returns Task<> or single value T or expected<>.
 				// In any case std::variant<> c-tor will resolve to proper active
 				// member since Task<> can't be constructed from T or expected.
-				new(std::addressof(value_)) Value(
+				new(static_cast<void*>(std::addressof(value_))) Value(
 					std::apply(std::move(f()), std::move(args())));
 				value_set_ = true;
 				assert((!IsTask() && (value().index() == 1))

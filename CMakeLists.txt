@@ -16,6 +16,9 @@ set_cpp17_standard()
 
 if (clang_on_msvc)
 	make_clang_work_on_windows()
+	# TODO: make this work. Now it fails to compile with
+	# invalid argument '/MDd' not allowed with '-fsanitize=address'
+	# add_compile_options(-fsanitize=address)
 endif()
 
 add_subdirectory(third_party)
