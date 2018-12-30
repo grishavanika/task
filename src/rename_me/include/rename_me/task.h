@@ -90,17 +90,6 @@ namespace nn
 		static InternalTaskPtr make_task(
 			Scheduler& scheduler, std::unique_ptr<ICustomTask<T, E>> task);
 
-		template<typename F, typename Return, typename Result>
-		static void on_finish_invoker(void* erased_f, void* erased_self, Result* result);
-
-		template<typename F, typename Return, typename Result>
-		static void invoke_finish(F& f, const Task& self, Result* result
-			, std::true_type/*task*/);
-
-		template<typename F, typename Return, typename Result>
-		static void invoke_finish(F& f, const Task& self, Result* result
-			, std::false_type/*NOT task*/);
-
 		void remove();
 
 	private:
@@ -218,36 +207,6 @@ namespace nn
 	{
 		assert(task_);
 		task_->cancel();
-	}
-
-	template<typename T, typename E>
-	template<typename F, typename Return, typename Result>
-	/*static*/ void Task<T, E>::on_finish_invoker(
-		void* erased_f, void* erased_self, Result* result)
-	{
-		F& f = *static_cast<F*>(erased_f);
-		InternalTaskPtr& self = *static_cast<InternalTaskPtr*>(erased_self);
-		using IsTask = typename Return::is_task;
-
-		invoke_finish<F, Return, Result>(f, Task(self), result, IsTask());
-		result->invoked = true;
-	}
-
-	template<typename T, typename E>
-	template<typename F, typename Return, typename Result>
-	/*static*/ void Task<T, E>::invoke_finish(F& f, const Task& self, Result* result
-		, std::true_type/*is_task*/)
-	{
-		auto task = std::move(f)(self);
-		result->invoked_task = task.task_;
-	}
-
-	template<typename T, typename E>
-	template<typename F, typename Return, typename Result>
-	/*static*/ void Task<T, E>::invoke_finish(F& f, const Task& self, Result* result
-		, std::false_type/*is_task*/)
-	{
-		result->value = std::move(f)(self);
 	}
 
 	template<typename T, typename E>
