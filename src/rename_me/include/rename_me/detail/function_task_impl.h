@@ -134,6 +134,12 @@ namespace nn
 					return tick_task(cancel_requested);
 				}
 
+				if (!Invoker::can_invoke())
+				{
+					step_ = Step::Canceled;
+					return State(Status::Failed, true/*canceled*/);
+				}
+
 				assert(step_ == Step::None);
 				step_ = Step::Invoked;
 				call_impl(IsApplyVoid());

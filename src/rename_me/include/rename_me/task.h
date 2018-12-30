@@ -84,11 +84,24 @@ namespace nn
 			-> decltype(on_finish(
 				std::declval<Scheduler&>(), std::forward<F>(f)));
 
+		template<typename F>
+		auto on_fail(Scheduler& scheduler, F&& f)
+			-> decltype(on_finish(scheduler, std::forward<F>(f)));
+
+		// Executes on_fail() with this task's scheduler
+		template<typename F>
+		auto on_fail(F&& f)
+			-> decltype(on_fail(
+				std::declval<Scheduler&>(), std::forward<F>(f)));
+
 	private:
 		explicit Task(InternalTaskPtr task);
 
 		static InternalTaskPtr make_task(
 			Scheduler& scheduler, std::unique_ptr<ICustomTask<T, E>> task);
+
+		template<typename F, typename CallPredicate>
+		auto on_finish_impl(Scheduler& scheduler, F&& f, CallPredicate p);
 
 		void remove();
 
@@ -238,19 +251,20 @@ namespace nn
 	}
 
 	template<typename T, typename E>
-	template<typename F>
-	detail::FunctionTaskReturnT<F, std::tuple<const Task<T, E>&>>
-		Task<T, E>::on_finish(Scheduler& scheduler, F&& f)
+	template<typename F, typename CallPredicate>
+	auto Task<T, E>::on_finish_impl(Scheduler& scheduler, F&& f, CallPredicate p)
 	{
 		using Function = detail::remove_cvref_t<F>;
 		using FunctionTaskReturn = detail::FunctionTaskReturn<F, std::tuple<const Task&>>;
 		using ReturnTask = typename FunctionTaskReturn::type;
 
-		struct Invoker :
-			private Function
+		struct Invoker
+			: private Function
+			, private CallPredicate
 		{
-			explicit Invoker(Function&& f, InternalTaskPtr t)
+			explicit Invoker(Function&& f, CallPredicate p, InternalTaskPtr t)
 				: Function(std::move(f))
+				, CallPredicate(std::move(p))
 				, task(std::move(t))
 			{
 			}
@@ -259,6 +273,12 @@ namespace nn
 			{
 				auto& f = static_cast<Function&>(*this);
 				return std::move(f)(Task(task));
+			}
+
+			bool can_invoke()
+			{
+				auto& call_if = static_cast<CallPredicate&>(*this);
+				return std::move(call_if)(Task(task));
 			}
 
 			bool wait() const
@@ -273,8 +293,22 @@ namespace nn
 
 		assert(task_);
 		auto task = std::make_unique<FinishTask>(
-			Invoker(std::forward<F>(f), task_));
+			Invoker(std::forward<F>(f), std::move(p), task_));
 		return ReturnTask(scheduler, std::move(task));
+	}
+
+	template<typename T, typename E>
+	template<typename F>
+	detail::FunctionTaskReturnT<F, std::tuple<const Task<T, E>&>>
+		Task<T, E>::on_finish(Scheduler& scheduler, F&& f)
+	{
+		return on_finish_impl(scheduler, std::forward<F>(f)
+			, [](const Task& self)
+		{
+			// Invoke callback in any case
+			(void)self;
+			return true;
+		});
 	}
 
 	template<typename T, typename E>
@@ -285,6 +319,28 @@ namespace nn
 	{
 		assert(task_);
 		return on_finish(task_->scheduler(), std::forward<F>(f));
+	}
+
+	template<typename T, typename E>
+	template<typename F>
+	auto Task<T, E>::on_fail(Scheduler& scheduler, F&& f)
+		-> decltype(on_finish(scheduler, std::forward<F>(f)))
+	{
+		return on_finish_impl(scheduler, std::forward<F>(f)
+			, [](const Task& self)
+		{
+			return self.is_failed();
+		});
+	}
+
+	template<typename T, typename E>
+	template<typename F>
+	auto Task<T, E>::on_fail(F&& f)
+		-> decltype(on_fail(
+			std::declval<Scheduler&>(), std::forward<F>(f)))
+	{
+		assert(task_);
+		return on_fail(task_->scheduler(), std::forward<F>(f));
 	}
 
 } // namespace nn

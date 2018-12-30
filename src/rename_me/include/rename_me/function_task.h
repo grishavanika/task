@@ -38,6 +38,11 @@ namespace nn
 				return std::apply(std::move(f), std::move(args));
 			}
 
+			bool can_invoke() const
+			{
+				return true;
+			}
+
 			bool wait() const
 			{
 				return false;

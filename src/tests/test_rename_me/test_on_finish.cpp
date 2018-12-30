@@ -123,3 +123,44 @@ TEST(OnFinish, Can_Be_Called_Multiple_Times_On_Same_Task)
 
 	ASSERT_THAT(calls, UnorderedElementsAre(1, 2, 3));
 }
+
+TEST(OnFinish, On_Fail_Is_Failed_And_Canceled_When_Task_Finish_With_Success)
+{
+	Scheduler sch;
+	Task<void> success = make_task(sch, [] { });
+
+	bool fail_invoked = false;
+	Task<void> on_fail = success.on_fail([&](const Task<void>&)
+	{
+		fail_invoked = true;
+	});
+
+	sch.tick();
+	ASSERT_TRUE(success.is_successful());
+	ASSERT_TRUE(on_fail.is_canceled());
+	ASSERT_TRUE(on_fail.is_failed());
+	ASSERT_FALSE(fail_invoked);
+}
+
+TEST(OnFinish, On_Fail_Is_Successful_When_Task_Finish_With_Fail)
+{
+	Scheduler sch;
+	Task<int, int> failed = make_task(sch
+		, []
+	{
+		using error = ::nn::unexpected<int>;
+		return expected<int, int>(error(1));
+	});
+
+	bool fail_invoked = false;
+	Task<void> on_fail = failed.on_fail([&](const Task<int, int>&)
+	{
+		fail_invoked = true;
+	});
+
+	sch.tick();
+	ASSERT_TRUE(failed.is_failed());
+	ASSERT_TRUE(on_fail.is_successful());
+	ASSERT_FALSE(on_fail.is_canceled());
+	ASSERT_TRUE(fail_invoked);
+}
