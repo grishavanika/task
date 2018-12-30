@@ -11,6 +11,18 @@ namespace nn
 		Failed,
 	};
 
+	struct State
+	{
+		Status status;
+		bool canceled;
+
+		State(Status s, bool do_cancel = false)
+			: status(s)
+			, canceled(do_cancel)
+		{
+		}
+	};
+
 	template<typename T, typename E>
 	class ICustomTask
 	{
@@ -18,12 +30,7 @@ namespace nn
 		virtual ~ICustomTask() = default;
 
 		// Invoked on Scheduler's thread.
-		// Implementation needs not care about cancel() and tick()
-		// thread-safety: it's handled internally (e.g.,
-		// if cancel() was requested by the client, cancel() will
-		// be invoked right before tick(), from the same thread).
-		virtual Status tick() = 0;
-		virtual bool cancel() = 0;
+		virtual State tick(bool cancel_requested) = 0;
 		// Implementation needs to guaranty that returned value
 		// is "some" valid value once tick() returns finished status.
 		// To be thread-safe, get() value needs to be set before

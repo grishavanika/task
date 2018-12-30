@@ -20,8 +20,11 @@ namespace nn
 			{
 			}
 
-			virtual Status tick() override
+			virtual State tick(bool cancel_requested) override
 			{
+				// std::future<> can't be canceled
+				(void)cancel_requested;
+
 				if (!future_.valid())
 				{
 					return Status::Failed;
@@ -45,11 +48,6 @@ namespace nn
 					result_ = unexpected<std::exception_ptr>(std::current_exception());
 					return Status::Failed;
 				}
-			}
-
-			virtual bool cancel() override
-			{
-				return false;
 			}
 
 			virtual expected<T, std::exception_ptr>& get() override

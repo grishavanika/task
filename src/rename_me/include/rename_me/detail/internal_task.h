@@ -34,6 +34,7 @@ namespace nn
 			virtual Status tick() override;
 			void cancel();
 			Status status() const;
+			State state() const;
 			bool is_canceled() const;
 			expected<T, E>& get();
 
@@ -41,7 +42,9 @@ namespace nn
 			Scheduler& scheduler_;
 			std::unique_ptr<ICustomTask<T, E>> task_;
 			// #TODO: looks like it's possible to have some other "packed"
-			// representation for these flags to have single atomic<>
+			// representation for these flags to have single atomic<>.
+			// #TODO: looks like `last_run_` and `canceled_` (e.g., state())
+			// should be glued together to guaranty nicer thread-safety/consistency stuff
 			std::atomic<Status> last_run_;
 			std::atomic_bool canceled_;
 			std::atomic_bool try_cancel_;
@@ -78,13 +81,18 @@ namespace nn
 		Status InternalTask<T, E>::tick()
 		{
 			assert(last_run_ == Status::InProgress);
-			if (!canceled_ && try_cancel_)
-			{
-				canceled_ = task_->cancel();
-			}
+			const bool cancel_requested = try_cancel_;
 			try_cancel_ = false;
-			last_run_ = task_->tick();
+			const State state = task_->tick(cancel_requested);
+			canceled_ = state.canceled;
+			last_run_ = state.status;
 			return last_run_;
+		}
+
+		template<typename T, typename E>
+		State InternalTask<T, E>::state() const
+		{
+			return State(status(), is_canceled());
 		}
 
 		template<typename T, typename E>

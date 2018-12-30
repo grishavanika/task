@@ -70,7 +70,7 @@ namespace nn
 			, private Invoker
 		{
 		public:
-			enum class State : std::uint8_t
+			enum class Step : std::uint8_t
 			{
 				None,
 				Invoked,
@@ -94,7 +94,7 @@ namespace nn
 			explicit FunctionTask(Invoker&& invoker)
 				: Invoker(std::move(invoker))
 				, value_()
-				, state_(State::None)
+				, step_(Step::None)
 				, value_set_(false)
 			{
 			}
@@ -112,25 +112,30 @@ namespace nn
 			FunctionTask(const FunctionTask&) = delete;
 			FunctionTask& operator=(const FunctionTask&) = delete;
 
-			virtual Status tick() override
+			virtual State tick(bool cancel_requested) override
 			{
-				if (state_ == State::Canceled)
+				if (cancel_requested && (step_ == Step::None))
+				{
+					step_ = Step::Canceled;
+					return State(Status::Failed, true/*canceled*/);
+				}
+				if (step_ == Step::Canceled)
 				{
 					return Status::Failed;
 				}
 				if (Invoker::wait())
 				{
-					assert(state_ == State::None);
+					assert(step_ == Step::None);
 					return Status::InProgress;
 				}
 
-				if (IsTask() && (state_ == State::Invoked))
+				if (IsTask() && (step_ == Step::Invoked))
 				{
-					return get_task().status();
+					return tick_task(cancel_requested);
 				}
 
-				assert(state_ == State::None);
-				state_ = State::Invoked;
+				assert(step_ == Step::None);
+				step_ = Step::Invoked;
 				call_impl(IsApplyVoid());
 
 				if (IsExpected())
@@ -141,7 +146,7 @@ namespace nn
 				}
 				else if (IsTask())
 				{
-					return get_task().status();
+					return tick_task(cancel_requested);
 				}
 
 				// Single T was returned, we are done right after call
@@ -164,15 +169,14 @@ namespace nn
 				return std::get<1>(v);
 			}
 
-			virtual bool cancel() override
+			State tick_task(bool cancel_requested)
 			{
-				if (state_ == State::None)
+				auto& task = get_task();
+				if (cancel_requested)
 				{
-					// Canceled before tick()
-					state_ = State::Canceled;
-					return true;
+					task.try_cancel();
 				}
-				return false;
+				return State(task.status(), task.is_canceled());
 			}
 
 			virtual typename Return::expected_type& get() override
@@ -216,7 +220,7 @@ namespace nn
 				sizeof(Value), alignof(Value)>::type;
 
 			ValueStorage value_;
-			State state_;
+			Step step_;
 			bool value_set_;
 		};
 
