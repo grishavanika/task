@@ -41,8 +41,8 @@ int main()
 1. Reduce memory usage. Think about custom allocators.
 2. How Scheduler can be customized ?
 4. Unify nn::expected<> API to be consistent.
-5. Add supporting API (like, `when_all(tasks...).on_finis(...)`).
-6. More tests. Ensure thread-safe stuff.
+5. Add supporting API (like, `when_all(tasks...).on_finish(...)`).
+6. Tests: ensure thread-safe stuff.
 8. Polish memory layout for internal tasks.
 9. Default (thread-local ?) Scheduler's ?
 
