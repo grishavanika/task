@@ -72,7 +72,7 @@ namespace
 
 	Task<> make_test_task(Scheduler& sch, Status& status, bool& canceled)
 	{
-		return Task<>(sch, std::make_unique<TestTask>(status, canceled));
+		return Task<>::template make<TestTask>(sch, status, canceled);
 	}
 
 } // namespace

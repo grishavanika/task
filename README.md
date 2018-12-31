@@ -38,7 +38,10 @@ int main()
 
 # TODO:
 
-1. Reduce memory usage. Think about custom allocators.
+1. Add support of custom allocators.
+   One allocator for scheduler ? Or one allocator per task ?
+   (allocator per task will be hard to add/implement with
+   existing interface).
 2. How Scheduler can be customized ?
 4. Unify nn::expected<> API to be consistent.
 5. Add supporting API (like, `when_all(tasks...).on_finish(...)`).

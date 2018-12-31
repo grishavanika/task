@@ -29,7 +29,9 @@ namespace nn
 		using value = expected<T, E>;
 
 	public:
-		explicit Task(Scheduler& scheduler, std::unique_ptr<ICustomTask<T, E>> task);
+		template<typename CustomTask, typename... Args>
+		// #TODO: requires std::is_base_of<ICustomTask<T, E>, CustomTask>
+		static Task make(Scheduler& scheduler, Args&&... args);
 		~Task();
 		Task(Task&& rhs) noexcept;
 		Task& operator=(Task&& rhs) noexcept;
@@ -117,9 +119,6 @@ namespace nn
 	private:
 		explicit Task(InternalTaskPtr task);
 
-		static InternalTaskPtr make_task(
-			Scheduler& scheduler, std::unique_ptr<ICustomTask<T, E>> task);
-
 		template<typename F, typename CallPredicate>
 		auto on_finish_impl(Scheduler& scheduler, F&& f, CallPredicate p);
 
@@ -138,15 +137,6 @@ namespace nn
 
 namespace nn
 {
-	template<typename T, typename E>
-	/*static*/ typename  Task<T, E>::InternalTaskPtr Task<T, E>::make_task(
-		Scheduler& scheduler, std::unique_ptr<ICustomTask<T, E>> task)
-	{
-		auto impl = std::make_shared<detail::InternalTask<T, E>>(
-			scheduler, std::move(task));
-		scheduler.add(impl);
-		return impl;
-	}
 
 	template<typename T, typename E>
 	/*explicit*/ Task<T, E>::Task(InternalTaskPtr task)
@@ -155,9 +145,14 @@ namespace nn
 	}
 
 	template<typename T, typename E>
-	/*explicit*/ Task<T, E>::Task(Scheduler& scheduler, std::unique_ptr<ICustomTask<T, E>> task)
-		: task_(make_task(scheduler, std::move(task)))
+	template<typename CustomTask, typename... Args>
+	/*static*/ Task<T, E> Task<T, E>::make(Scheduler& scheduler, Args&&... args)
 	{
+		using InternalTask = detail::InternalCustomTask<T, E, CustomTask>;
+		auto impl = std::make_shared<InternalTask>(
+			scheduler, std::forward<Args>(args)...);
+		scheduler.add(impl);
+		return Task(impl);
 	}
 
 	template<typename T, typename E>
@@ -194,7 +189,7 @@ namespace nn
 	Status Task<T, E>::status() const
 	{
 		assert(task_);
-		return task_->status();
+		return task_->state().status;
 	}
 
 	template<typename T, typename E>
@@ -213,7 +208,7 @@ namespace nn
 	bool Task<T, E>::is_canceled() const
 	{
 		assert(task_);
-		return task_->is_canceled();
+		return task_->state().canceled;
 	}
 
 	template<typename T, typename E>
@@ -246,28 +241,28 @@ namespace nn
 	expected<T, E>& Task<T, E>::get() const &
 	{
 		assert(task_);
-		return task_->get();
+		return task_->get_data();
 	}
 
 	template<typename T, typename E>
 	expected<T, E>& Task<T, E>::get() &
 	{
 		assert(task_);
-		return task_->get();
+		return task_->get_data();
 	}
 
 	template<typename T, typename E>
 	expected<T, E> Task<T, E>::get() &&
 	{
 		assert(task_);
-		return std::move(task_->get());
+		return std::move(task_->get_data());
 	}
 
 	template<typename T, typename E>
 	expected<T, E> Task<T, E>::get_once()
 	{
 		assert(task_);
-		return std::move(task_->get());
+		return std::move(task_->get_data());
 	}
 
 	template<typename T, typename E>
@@ -303,7 +298,7 @@ namespace nn
 
 			bool wait() const
 			{
-				return (task->status() == Status::InProgress);
+				return (task->state().status == Status::InProgress);
 			}
 
 			InternalTaskPtr task;
@@ -312,9 +307,8 @@ namespace nn
 		using FinishTask = detail::FunctionTask<FunctionTaskReturn, Invoker>;
 
 		assert(task_);
-		auto task = std::make_unique<FinishTask>(
-			Invoker(std::forward<F>(f), std::move(p), task_));
-		return ReturnTask(scheduler, std::move(task));
+		return ReturnTask::template make<FinishTask>(scheduler
+			, Invoker(std::forward<F>(f), std::move(p), task_));
 	}
 
 	template<typename T, typename E>

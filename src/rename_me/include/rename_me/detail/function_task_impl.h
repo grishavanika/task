@@ -65,7 +65,7 @@ namespace nn
 			, typename Invoker
 			// Proper ICustomTask<T, E>
 			, typename CustomTask = typename Return::custom_task>
-		class FunctionTask final
+		class FunctionTask
 			: public CustomTask
 			, private Invoker
 		{

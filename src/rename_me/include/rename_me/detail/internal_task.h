@@ -19,28 +19,38 @@ namespace nn
 		public:
 			virtual ~TaskBase() = default;
 
-			virtual Status tick() = 0;
+			virtual Status update() = 0;
 		};
 
 		template<typename T, typename E>
 		class InternalTask : public TaskBase
 		{
 		public:
-			explicit InternalTask(Scheduler& scheduler
-				, std::unique_ptr<ICustomTask<T, E>> task);
+			virtual Scheduler& scheduler() = 0;
+			virtual void cancel() = 0;
+			virtual State state() const = 0;
+			virtual expected<T, E>& get_data() = 0;
+		};
 
-			Scheduler& scheduler();
+		template<typename T, typename E, typename CustomTask>
+		class InternalCustomTask final
+			: public InternalTask<T, E>
+			, private CustomTask
+		{
+		public:
+			template<typename... Args>
+			explicit InternalCustomTask(Scheduler& scheduler, Args&&... args);
 
-			virtual Status tick() override;
-			void cancel();
-			Status status() const;
-			State state() const;
-			bool is_canceled() const;
-			expected<T, E>& get();
+			CustomTask& task();
+
+			virtual Scheduler& scheduler() override;
+			virtual Status update() override;
+			virtual void cancel() override;
+			virtual State state() const override;
+			virtual expected<T, E>& get_data() override;
 
 		private:
 			Scheduler& scheduler_;
-			std::unique_ptr<ICustomTask<T, E>> task_;
 			// #TODO: looks like it's possible to have some other "packed"
 			// representation for these flags to have single atomic<>.
 			// #TODO: looks like `last_run_` and `canceled_` (e.g., state())
@@ -59,65 +69,59 @@ namespace nn
 	namespace detail
 	{
 
-		template<typename T, typename E>
-		/*explicit*/ InternalTask<T, E>::InternalTask(Scheduler& scheduler
-			, std::unique_ptr<ICustomTask<T, E>> task)
-			: scheduler_(scheduler)
-			, task_(std::move(task))
+		template<typename T, typename E, typename CustomTask>
+		template<typename... Args>
+		/*explicit*/ InternalCustomTask<T, E, CustomTask>::InternalCustomTask(
+			Scheduler& scheduler, Args&&... args)
+			: CustomTask(std::forward<Args>(args)...)
+			, scheduler_(scheduler)
 			, last_run_(Status::InProgress)
 			, canceled_(false)
 			, try_cancel_(false)
 		{
-			assert(task_);
 		}
 
-		template<typename T, typename E>
-		Scheduler& InternalTask<T, E>::scheduler()
+		template<typename T, typename E, typename CustomTask>
+		CustomTask& InternalCustomTask<T, E, CustomTask>::task()
+		{
+			return static_cast<CustomTask&>(*this);
+		}
+
+		template<typename T, typename E, typename CustomTask>
+		Scheduler& InternalCustomTask<T, E, CustomTask>::scheduler()
 		{
 			return scheduler_;
 		}
 
-		template<typename T, typename E>
-		Status InternalTask<T, E>::tick()
+		template<typename T, typename E, typename CustomTask>
+		Status InternalCustomTask<T, E, CustomTask>::update()
 		{
 			assert(last_run_ == Status::InProgress);
 			const bool cancel_requested = try_cancel_;
 			try_cancel_ = false;
-			const State state = task_->tick(cancel_requested);
+			const State state = task().tick(cancel_requested);
 			canceled_ = state.canceled;
 			last_run_ = state.status;
 			return last_run_;
 		}
 
-		template<typename T, typename E>
-		State InternalTask<T, E>::state() const
+		template<typename T, typename E, typename CustomTask>
+		State InternalCustomTask<T, E, CustomTask>::state() const
 		{
-			return State(status(), is_canceled());
+			return State(last_run_, canceled_);
 		}
 
-		template<typename T, typename E>
-		Status InternalTask<T, E>::status() const
-		{
-			return last_run_.load();
-		}
-
-		template<typename T, typename E>
-		void InternalTask<T, E>::cancel()
+		template<typename T, typename E, typename CustomTask>
+		void InternalCustomTask<T, E, CustomTask>::cancel()
 		{
 			try_cancel_.store(true);
 		}
 
-		template<typename T, typename E>
-		bool InternalTask<T, E>::is_canceled() const
+		template<typename T, typename E, typename CustomTask>
+		expected<T, E>& InternalCustomTask<T, E, CustomTask>::get_data()
 		{
-			return canceled_.load();
-		}
-
-		template<typename T, typename E>
-		expected<T, E>& InternalTask<T, E>::get()
-		{
-			assert(status() != Status::InProgress);
-			return task_->get();
+			assert(last_run_ != Status::InProgress);
+			return task().get();
 		}
 
 	} // namespace detail

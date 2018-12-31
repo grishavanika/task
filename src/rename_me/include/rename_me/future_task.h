@@ -11,7 +11,7 @@ namespace nn
 	{
 		// #TODO: do Task<T, void> if exceptions are disabled
 		template<typename T>
-		class FutureTask final : public ICustomTask<T, std::exception_ptr>
+		class FutureTask : public ICustomTask<T, std::exception_ptr>
 		{
 		public:
 			explicit FutureTask(std::future<T>&& f)
@@ -67,8 +67,9 @@ namespace nn
 	template<typename T>
 	auto make_task(Scheduler& scheduler, std::future<T>&& future)
 	{
-		auto task = std::make_unique<detail::FutureTask<T>>(std::move(future));
-		return Task<T, std::exception_ptr>(scheduler, std::move(task));
+		using Task = Task<T, std::exception_ptr>;
+		return Task::template make<detail::FutureTask<T>>(
+			scheduler, std::move(future));
 	}
 
 } // namespace nn

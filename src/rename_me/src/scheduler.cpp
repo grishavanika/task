@@ -48,7 +48,7 @@ namespace nn
 
 		for (auto& task : tasks)
 		{
-			if (task->tick() != Status::InProgress)
+			if (task->update() != Status::InProgress)
 			{
 				task = nullptr;
 			}

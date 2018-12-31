@@ -23,6 +23,11 @@ namespace nn
 		}
 	};
 
+	// #TODO: we do not need run-time interface.
+	// Make it as concept. E.g., CustomTask is any class
+	// that supports functions:
+	//  1. State tick(bool cancel_requested)
+	//  2. expected<T, E>& get()
 	template<typename T, typename E>
 	class ICustomTask
 	{

@@ -49,12 +49,9 @@ namespace nn
 			}
 		};
 
-		using Impl = detail::FunctionTask<FunctionTaskReturn, Invoker>;
-		
-		auto task = std::make_unique<Impl>(
-			Invoker(std::forward<F>(f), ArgsTuple(std::forward<Args>(args)...)));
-
-		return ReturnTask(scheduler, std::move(task));
+		using FunctionTask = detail::FunctionTask<FunctionTaskReturn, Invoker>;
+		return ReturnTask::template make<FunctionTask>(scheduler
+			, Invoker(std::forward<F>(f), ArgsTuple(std::forward<Args>(args)...)));
 	}
 
 } // namespace nn
