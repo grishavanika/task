@@ -48,6 +48,9 @@ int main()
 6. Tests: ensure thread-safe stuff.
 8. Polish memory layout for internal tasks.
 9. Default (thread-local ?) Scheduler's ?
+10. Compare to continuable: https://github.com/Naios/continuable
+11. Add task.then() as alias for .on_finish()
+12.
 
 # Compilers
 

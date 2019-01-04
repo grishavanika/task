@@ -91,8 +91,8 @@ TEST(OnFinish, Can_Be_Chained)
 
 	while (task3.is_in_progress())
 	{
-		sch.tick();
-		sch2.tick();
+		(void)sch.poll();
+		(void)sch2.poll();
 	}
 
 	ASSERT_THAT(order, ElementsAre(1, 2, 3, 4));
@@ -118,7 +118,7 @@ TEST(OnFinish, Can_Be_Called_Multiple_Times_On_Same_Task)
 
 	while (sch.has_tasks())
 	{
-		sch.tick();
+		(void)sch.poll();
 	}
 
 	ASSERT_THAT(calls, UnorderedElementsAre(1, 2, 3));
@@ -135,7 +135,7 @@ TEST(OnFinish, On_Fail_Is_Failed_And_Canceled_When_Task_Finish_With_Success)
 		fail_invoked = true;
 	});
 
-	sch.tick();
+	(void)sch.poll();
 	ASSERT_TRUE(success.is_successful());
 	ASSERT_TRUE(on_fail.is_canceled());
 	ASSERT_TRUE(on_fail.is_failed());
@@ -158,7 +158,7 @@ TEST(OnFinish, On_Fail_Is_Successful_When_Task_Finish_With_Fail)
 		fail_invoked = true;
 	});
 
-	sch.tick();
+	(void)sch.poll();
 	ASSERT_TRUE(failed.is_failed());
 	ASSERT_TRUE(on_fail.is_successful());
 	ASSERT_FALSE(on_fail.is_canceled());
@@ -176,7 +176,7 @@ TEST(OnFinish, On_Success_Is_Successful_When_Task_Finish_With_Success)
 		success_invoked = true;
 	});
 
-	sch.tick();
+	(void)sch.poll();
 	ASSERT_TRUE(success.is_successful());
 	ASSERT_TRUE(on_success.is_successful());
 	ASSERT_FALSE(on_success.is_canceled());
@@ -199,7 +199,7 @@ TEST(OnFinish, On_Success_Is_Failed_And_Canceled_When_Task_Finish_With_Fail)
 		success_invoked = true;
 	});
 
-	sch.tick();
+	(void)sch.poll();
 	ASSERT_TRUE(failed.is_failed());
 	ASSERT_TRUE(on_success.is_canceled());
 	ASSERT_TRUE(on_success.is_failed());
@@ -218,7 +218,7 @@ TEST(OnFinish, On_Cancel_Is_Successful_When_Task_Is_Canceled)
 		cancel_invoked = true;
 	});
 
-	sch.tick();
+	(void)sch.poll();
 
 	ASSERT_TRUE(task.is_canceled());
 	ASSERT_TRUE(on_cancel.is_successful());
@@ -237,7 +237,7 @@ TEST(OnFinish, On_Cancel_Is_Failed_And_Canceled_When_Task_Is_NOT_Canceled)
 		cancel_invoked = true;
 	});
 
-	sch.tick();
+	(void)sch.poll();
 
 	ASSERT_FALSE(task.is_canceled());
 	ASSERT_TRUE(on_cancel.is_failed());

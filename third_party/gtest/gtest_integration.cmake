@@ -32,7 +32,7 @@ macro(setup_gtest_lib lib_name)
 			-Wno-missing-variable-declarations
 			-Wno-covered-switch-default
 			-Wno-unused-member-function
-			-Wno-switch-enum
+			-Wno-unused-parameter
 			-Wno-deprecated)
 	endif()
 

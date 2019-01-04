@@ -12,7 +12,7 @@ TEST(Scheduler, Default_Constructed_Has_No_Tasks)
 	ASSERT_EQ(std::size_t(0), sch.tasks_count());
 	ASSERT_FALSE(sch.has_tasks());
 
-	sch.tick();
+	(void)sch.poll();
 	ASSERT_EQ(std::size_t(0), sch.tasks_count());
 	ASSERT_FALSE(sch.has_tasks());
 }
@@ -24,7 +24,7 @@ TEST(Scheduler, Single_Task_Adds_One_Task_To_Scheduler)
 	ASSERT_EQ(std::size_t(1), sch.tasks_count());
 	ASSERT_TRUE(sch.has_tasks());
 
-	sch.tick();
+	(void)sch.poll();
 	ASSERT_EQ(std::size_t(0), sch.tasks_count());
 	ASSERT_FALSE(sch.has_tasks());
 }
@@ -33,14 +33,14 @@ TEST(Scheduler, Task_On_Finish_Adds_One_Task_To_Scheduler)
 {
 	Scheduler sch;
 	auto task = make_task(sch, [] {});
-	sch.tick();
+	(void)sch.poll();
 	ASSERT_EQ(std::size_t(0), sch.tasks_count());
 	ASSERT_FALSE(sch.has_tasks());
 
 	(void)task.on_finish([](const Task<>&) {});
 	ASSERT_EQ(std::size_t(1), sch.tasks_count());
 	ASSERT_TRUE(sch.has_tasks());
-	sch.tick();
+	(void)sch.poll();
 	ASSERT_EQ(std::size_t(0), sch.tasks_count());
 	ASSERT_FALSE(sch.has_tasks());
 }
@@ -52,7 +52,7 @@ TEST(Scheduler, Executes_Task_On_Schedulers_Thread)
 	Task<std::thread::id> task = make_task(sch
 		, [] { return std::this_thread::get_id(); });
 
-	std::thread worker(&Scheduler::tick, &sch);
+	std::thread worker([&] { (void)sch.poll(); });
 	while (task.is_in_progress());
 	ASSERT_EQ(worker.get_id(), task.get().value());
 	worker.join();
@@ -75,13 +75,13 @@ TEST(Scheduler, Executes_On_Finish_On_Given_Scheduler)
 		return std::this_thread::get_id();
 	});
 
-	std::thread worker1(&Scheduler::tick, &sch);
+	std::thread worker1([&] { (void)sch.poll(); });
 	while (task.is_in_progress());
 	ASSERT_EQ(worker1.get_id(), task.get().value());
 	worker1.join();
 
 	ASSERT_EQ(std::size_t(1), finish_sch.tasks_count());
-	std::thread worker2(&Scheduler::tick, &finish_sch);
+	std::thread worker2([&] { (void)finish_sch.poll(); });
 	while (finish_task.is_in_progress());
 	ASSERT_EQ(worker2.get_id(), finish_task.get().value());
 	worker2.join();

@@ -23,7 +23,7 @@ namespace nn
 		Scheduler(const Scheduler& rhs) = delete;
 		Scheduler& operator=(const Scheduler& rhs) = delete;
 
-		void tick();
+		std::size_t poll(std::size_t tasks_count = 0);
 		std::size_t tasks_count() const;
 		bool has_tasks() const;
 
@@ -34,6 +34,9 @@ namespace nn
 		using TaskPtr = std::shared_ptr<detail::TaskBase>;
 
 		void add(TaskPtr task);
+
+		std::vector<TaskPtr> get_tasks();
+		void add_tasks(std::vector<TaskPtr> tasks);
 
 	private:
 		std::mutex guard_;

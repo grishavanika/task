@@ -95,7 +95,7 @@ TEST(FunctionTask, Function_Is_Executed_Once)
 		ASSERT_EQ(Status::InProgress, task.status());
 		ASSERT_EQ(0, calls_count);
 
-		sch.tick();
+		ASSERT_EQ(std::size_t(1), sch.poll());
 
 		// Function was executed once
 		ASSERT_FALSE(task.is_in_progress());
@@ -104,7 +104,7 @@ TEST(FunctionTask, Function_Is_Executed_Once)
 		ASSERT_EQ(Status::Successful, task.status());
 		ASSERT_EQ(1, calls_count);
 
-		sch.tick();
+		ASSERT_EQ(std::size_t(0), sch.poll());
 
 		// No 2nd call, nothing was changed
 		ASSERT_FALSE(task.is_in_progress());
@@ -114,7 +114,7 @@ TEST(FunctionTask, Function_Is_Executed_Once)
 		ASSERT_EQ(1, calls_count);
 	}
 
-	sch.tick();
+	ASSERT_EQ(std::size_t(0), sch.poll());
 }
 
 TEST(FunctionTask, Can_Be_Canceled_Before_First_Call_To_Tick)
@@ -132,7 +132,7 @@ TEST(FunctionTask, Can_Be_Canceled_Before_First_Call_To_Tick)
 	ASSERT_EQ(Status::InProgress, task.status());
 	ASSERT_EQ(0, calls_count);
 
-	sch.tick();
+	ASSERT_EQ(std::size_t(1), sch.poll());
 
 	// Function call was canceled
 	ASSERT_TRUE(task.is_canceled());
@@ -148,7 +148,7 @@ TEST(FunctionTask, Cannot_Be_Canceled_After_Call_To_Tick)
 	int calls_count = 0;
 	Task<void> task = make_task(sch, [&] { ++calls_count; });
 
-	sch.tick();
+	ASSERT_EQ(std::size_t(1), sch.poll());
 	task.try_cancel();
 
 	// Function was executed once
@@ -156,7 +156,7 @@ TEST(FunctionTask, Cannot_Be_Canceled_After_Call_To_Tick)
 	ASSERT_TRUE(task.is_finished());
 	ASSERT_EQ(1, calls_count);
 
-	sch.tick();
+	ASSERT_EQ(std::size_t(0), sch.poll());
 	task.try_cancel();
 
 	ASSERT_FALSE(task.is_canceled());
@@ -172,7 +172,7 @@ TEST(FunctionTask, Move_Only_Return)
 	{
 		return std::make_unique<int>(11);
 	});
-	sch.tick();
+	ASSERT_EQ(std::size_t(1), sch.poll());
 	ASSERT_TRUE(task.is_successful());
 	ASSERT_TRUE(task.get().has_value());
 	ASSERT_NE(nullptr, task.get().value());
@@ -190,7 +190,7 @@ TEST(FunctionTask, Failed_Expected_Return_Fails_Task)
 		return expected<int, int>(error(1));
 	});
 
-	sch.tick();
+	ASSERT_EQ(std::size_t(1), sch.poll());
 	ASSERT_TRUE(task.is_failed());
 	ASSERT_FALSE(task.get().has_value());
 	ASSERT_EQ(1, task.get().error());
@@ -206,7 +206,7 @@ TEST(FunctionTask, Successful_Expected_Returns_Task_With_Success)
 		return expected<int, int>(2);
 	});
 
-	sch.tick();
+	ASSERT_EQ(std::size_t(1), sch.poll());
 	ASSERT_TRUE(task.is_successful());
 	ASSERT_TRUE(task.get().has_value());
 	ASSERT_EQ(2, task.get().value());
@@ -222,7 +222,7 @@ TEST(FunctionTask, Forwards_Args_To_The_Functor)
 	}
 		, std::make_unique<int>(42));
 
-	sch.tick();
+	ASSERT_EQ(std::size_t(1), sch.poll());
 	ASSERT_TRUE(task.is_successful());
 	ASSERT_TRUE(task.get().has_value());
 	ASSERT_NE(nullptr, task.get().value());
@@ -243,8 +243,8 @@ TEST(FunctionTask, Failed_Task_Return_Fails_Task)
 		});
 	});
 
-	sch.tick();
-	sch.tick();
+	ASSERT_EQ(std::size_t(0), sch.poll());
+	ASSERT_EQ(std::size_t(2), sch.poll());
 	ASSERT_TRUE(task.is_failed());
 	ASSERT_FALSE(task.get().has_value());
 	ASSERT_EQ(1, task.get().error());
@@ -264,8 +264,8 @@ TEST(FunctionTask, Successful_Task_Returns_Task_With_Success)
 		});
 	});
 
-	sch.tick();
-	sch.tick();
+	ASSERT_EQ(std::size_t(0), sch.poll());
+	ASSERT_EQ(std::size_t(2), sch.poll());
 	ASSERT_TRUE(task.is_successful());
 	ASSERT_TRUE(task.get().has_value());
 	ASSERT_EQ(2, task.get().value());
@@ -286,13 +286,13 @@ TEST(FunctionTask, Cancel_Requested_For_Inner_Task)
 	});
 
 	ASSERT_FALSE(invoked);
-	sch.tick();
+	ASSERT_EQ(std::size_t(0), sch.poll());
 	ASSERT_TRUE(invoked);
 	ASSERT_EQ(status, task.status());
 
 	task.try_cancel();
-	sch.tick();
-	sch.tick();
+	ASSERT_EQ(std::size_t(0), sch.poll());
+	ASSERT_EQ(std::size_t(2), sch.poll());
 	ASSERT_EQ(Status::Failed, task.status());
 	ASSERT_TRUE(canceled);
 	ASSERT_TRUE(task.is_canceled());

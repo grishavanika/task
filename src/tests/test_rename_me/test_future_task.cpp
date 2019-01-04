@@ -23,7 +23,7 @@ TEST(FutureTask, Can_Be_Constructed_From_Async)
 
 	while (task.is_in_progress())
 	{
-		sch.tick();
+		(void)sch.poll();
 	}
 
 	ASSERT_TRUE(task.is_successful());
@@ -38,10 +38,10 @@ TEST(FutureTask, Maintains_Proper_Status_On_Success)
 	using FutureTask = Task<int, std::exception_ptr>;
 
 	FutureTask task = make_task(sch, p.get_future());
-	sch.tick();
+	ASSERT_EQ(std::size_t(0), sch.poll());
 	ASSERT_TRUE(task.is_in_progress());
 	p.set_value(1);
-	sch.tick();
+	ASSERT_EQ(std::size_t(1), sch.poll());
 	ASSERT_TRUE(task.is_successful());
 	ASSERT_EQ(1, task.get().value());
 }
@@ -53,10 +53,10 @@ TEST(FutureTask, Maintains_Proper_Status_On_Fail)
 	using FutureTask = Task<int, std::exception_ptr>;
 
 	FutureTask task = make_task(sch, p.get_future());
-	sch.tick();
+	ASSERT_EQ(std::size_t(0), sch.poll());
 	ASSERT_TRUE(task.is_in_progress());
 	p.set_exception(std::make_exception_ptr(1));
-	sch.tick();
+	ASSERT_EQ(std::size_t(1), sch.poll());
 	ASSERT_TRUE(task.is_failed());
 
 	try

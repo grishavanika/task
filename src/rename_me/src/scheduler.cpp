@@ -36,37 +36,52 @@ namespace nn
 		return (tasks_count() > 0);
 	}
 
-	void Scheduler::tick()
+	std::size_t Scheduler::poll(std::size_t tasks_count /*= 0*/)
 	{
-		std::vector<TaskPtr> tasks;
-		{
-			Lock _(guard_);
-			tasks = std::move(tasks_);
-			tick_tasks_count_ = tasks.size();
-			tasks_count_ = 0;
-		}
-
+		std::size_t finished = 0;
+		const bool has_limit = (tasks_count != 0);
+		auto tasks = get_tasks();
 		for (auto& task : tasks)
 		{
-			if (task->update() != Status::InProgress)
+			if (task->update() == Status::InProgress)
 			{
-				task = nullptr;
+				continue;
+			}
+
+			task = nullptr;
+			++finished;
+			if (has_limit && (finished == tasks_count))
+			{
+				break;
 			}
 		}
+		add_tasks(std::move(tasks));
+		return finished;
+	}
 
-		{
-			// Move in-progress tasks back
-			auto it = std::remove_if(std::begin(tasks), std::end(tasks)
-				, [](const TaskPtr& task) { return !task; });
+	std::vector<Scheduler::TaskPtr> Scheduler::get_tasks()
+	{
+		std::vector<TaskPtr> tasks;
+		Lock _(guard_);
+		tasks = std::move(tasks_);
+		tick_tasks_count_ = tasks.size();
+		tasks_count_ = 0;
+		return tasks;
+	}
 
-			Lock _(guard_);
-			tasks_.reserve(tasks_.size() + tasks.size());
-			tasks_.insert(std::end(tasks_)
-				, std::make_move_iterator(std::begin(tasks))
-				, std::make_move_iterator(it));
-			tick_tasks_count_ = 0;
-			tasks_count_ = tasks_.size();
-		}
+	void Scheduler::add_tasks(std::vector<TaskPtr> tasks)
+	{
+		// Move in-progress tasks back
+		auto it = std::remove_if(std::begin(tasks), std::end(tasks)
+			, [](const TaskPtr& task) { return !task; });
+
+		Lock _(guard_);
+		tasks_.reserve(tasks_.size() + tasks.size());
+		tasks_.insert(std::end(tasks_)
+			, std::make_move_iterator(std::begin(tasks))
+			, std::make_move_iterator(it));
+		tick_tasks_count_ = 0;
+		tasks_count_ = tasks_.size();
 	}
 
 } // namespace nn
