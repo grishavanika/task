@@ -2,11 +2,11 @@
 #include <rename_me/storage.h>
 #include <rename_me/detail/internal_task.h>
 #include <rename_me/detail/cpp_20.h>
+#include <rename_me/detail/lazy_storage.h>
 
 #include <functional>
 #include <tuple>
 #include <variant>
-
 #include <cassert>
 #include <cstdint>
 
@@ -18,31 +18,97 @@ namespace nn
 
 	namespace detail
 	{
+		// To minimize amount of template instantiations
+		// this helper also contains part of the logic
+		// that knows how to tick() and get value nicely
+
 		template<typename R>
 		struct FunctionTaskReturnImpl
 		{
-			using is_expected = std::bool_constant<false>;
-			using is_task = std::bool_constant<false>;
-			using type = Task<R, void>;
+			using is_expected   = std::bool_constant<false>;
+			using is_task       = std::bool_constant<false>;
+			using type          = Task<R, void>;
 			using expected_type = expected<R, void>;
+			using storage       = LazyStorage<expected<R, void>>;
+			using is_void       = std::bool_constant<false>;
+
+			static Status tick_results(storage&, bool)
+			{
+				return Status::Successful;
+			}
+
+			static expected_type& get(storage& data)
+			{
+				return data.get();
+			}
+		};
+
+		template<>
+		struct FunctionTaskReturnImpl<void>
+		{
+			using is_expected   = std::bool_constant<false>;
+			using is_task       = std::bool_constant<false>;
+			using type          = Task<void, void>;
+			using expected_type = expected<void, void>;
+			using storage       = LazyStorage<expected<void, void>>;
+			using is_void       = std::bool_constant<true>;
+
+			static Status tick_results(storage&, bool)
+			{
+				return Status::Successful;
+			}
+
+			static expected_type& get(storage& data)
+			{
+				return data.get();
+			}
 		};
 
 		template<typename T, typename E>
 		struct FunctionTaskReturnImpl<expected<T, E>>
 		{
-			using is_expected = std::bool_constant<true>;
-			using is_task = std::bool_constant<false>;
-			using type = Task<T, E>;
+			using is_expected   = std::bool_constant<true>;
+			using is_task       = std::bool_constant<false>;
+			using type          = Task<T, E>;
 			using expected_type = expected<T, E>;
+			using storage       = LazyStorage<expected<T, E>>;
+			using is_void       = std::bool_constant<false>;
+
+			static Status tick_results(storage& data, bool)
+			{
+				return (data.get().has_value() ? Status::Successful : Status::Failed);
+			}
+
+			static expected_type& get(storage& data)
+			{
+				return data.get();
+			}
 		};
 
 		template<typename T, typename E>
 		struct FunctionTaskReturnImpl<Task<T, E>>
 		{
-			using is_expected = std::bool_constant<false>;
-			using is_task = std::bool_constant<true>;
-			using type = Task<T, E>;
+			using is_expected   = std::bool_constant<false>;
+			using is_task       = std::bool_constant<true>;
+			using type          = Task<T, E>;
 			using expected_type = expected<T, E>;
+			using storage       = LazyStorage<Task<T, E>>;
+			using is_void       = std::bool_constant<false>;
+
+			static Status tick_results(storage& data, bool cancel_requested)
+			{
+				auto& task = data.get();
+				if (cancel_requested)
+				{
+					task.try_cancel();
+				}
+				return task.status();
+			}
+
+			static expected_type& get(storage& data)
+			{
+				return data.get().get();
+			}
 		};
 
 		template<typename F, typename ArgsTuple
@@ -64,38 +130,20 @@ namespace nn
 		template<
 			// FunctionTaskReturn helper
 			typename Return
-			, typename Invoker>
+			, typename Invoker
+			, typename Storage = typename Return::storage>
 		class FunctionTask
 			: private Invoker
+			, private Storage
 		{
-		public:
-			using Value = std::variant<
-				typename Return::type // Either Task<> or
-				, typename Return::expected_type>; // expected<>
-
-			using IsExpected = typename Return::is_expected;
 			using IsTask = typename Return::is_task;
-			using IsValueVoid = std::is_same<
-				typename Return::type::value_type, void>;
-			using IsApplyVoid = std::integral_constant<bool
-				, !IsExpected::value && !IsTask::value && IsValueVoid::value>;
-			// Workaround for "broken"/temporary expected<void, void> we have now 
-			using IsVoidExpected = std::integral_constant<bool
-				, IsExpected::value && IsValueVoid::value>;
-
+			using IsApplyVoid = typename Return::is_void;
+		public:
 			explicit FunctionTask(Invoker&& invoker)
 				: Invoker(std::move(invoker))
-				, value_()
+				, Storage()
 				, invoked_(false)
 			{
-			}
-
-			~FunctionTask()
-			{
-				if (invoked_)
-				{
-					value().~Value();
-				}
 			}
 
 			FunctionTask(FunctionTask&&) = delete;
@@ -111,7 +159,7 @@ namespace nn
 				}
 				if (IsTask() && invoked_)
 				{
-					return tick_task(cancel_requested);
+					return Return::tick_results(*this, cancel_requested);
 				}
 				if (const_invoker().wait())
 				{
@@ -126,75 +174,27 @@ namespace nn
 				assert(!invoked_);
 				call_impl(IsApplyVoid());
 				invoked_ = true;
-
-				if (IsExpected())
-				{
-					return get_expected().has_value()
-						? Status::Successful
-						: Status::Failed;
-				}
-				else if (IsTask())
-				{
-					return tick_task(cancel_requested);
-				}
-
-				// Single value was returned, we are done right after call
-				return Status::Successful;
-			}
-
-			typename Return::type& get_task()
-			{
-				assert(invoked_);
-				auto& v = value();
-				assert(v.index() == 0);
-				return std::get<0>(v);
-			}
-
-			typename Return::expected_type& get_expected()
-			{
-				assert(invoked_);
-				auto& v = value();
-				assert(v.index() == 1);
-				return std::get<1>(v);
-			}
-
-			Status tick_task(bool cancel_requested)
-			{
-				auto& task = get_task();
-				if (cancel_requested)
-				{
-					task.try_cancel();
-				}
-				return task.status();
+				assert(Storage::has_value());
+				return Return::tick_results(*this, cancel_requested);
 			}
 
 			typename Return::expected_type& get()
 			{
-				return (IsTask() ? get_task().get() : get_expected());
+				return Return::get(*this);
 			}
 
 			void call_impl(std::true_type/*f(...) is void*/)
 			{
-				using Expected = typename Return::expected_type;
-				new(static_cast<void*>(std::addressof(value_))) Value(Expected());
 				assert(!IsTask()
 					&& "void f() should construct expected<void, ...> return");
 				invoker().invoke();
+				using Expected = typename Return::expected_type;
+				Storage::set_once(Expected());
 			}
 
 			void call_impl(std::false_type/*f(...) is NOT void*/)
 			{
-				// f() returns Task<> or single value T or expected<>.
-				// In any case std::variant<> c-tor will resolve to proper active
-				// member since Task<> can't be constructed from T or expected.
-				new(static_cast<void*>(std::addressof(value_))) Value(invoker().invoke());
-				assert((!IsTask() && (value().index() == 1))
-					|| ( IsTask() && (value().index() == 0)));
-			}
-
-			Value& value()
-			{
-				return *reinterpret_cast<Value*>(std::addressof(value_));
+				Storage::set_once(invoker().invoke());
 			}
 
 			Invoker& invoker()
@@ -208,10 +208,6 @@ namespace nn
 			}
 
 		private:
-			using ValueStorage = typename std::aligned_storage<
-				sizeof(Value), alignof(Value)>::type;
-
-			ValueStorage value_;
 			bool invoked_;
 		};
 

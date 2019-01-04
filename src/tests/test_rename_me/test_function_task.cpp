@@ -296,3 +296,20 @@ TEST(FunctionTask, Cancel_Requested_For_Inner_Task)
 	ASSERT_EQ(Status::Canceled, task.status());
 	ASSERT_TRUE(task.is_canceled());
 }
+
+TEST(FunctionTask, Returns_Non_Default_Constructiable_Value)
+{
+	struct Value
+	{
+		int data;
+		explicit Value(int v)
+			: data(v)
+		{
+		}
+	};
+	Scheduler sch;
+	Task<Value> task = make_task(sch, [&] { return Value(1); });
+	(void)sch.poll();
+	ASSERT_EQ(1, task.get().value().data);
+}
+

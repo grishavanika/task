@@ -96,9 +96,10 @@ namespace nn
 		{
 			assert(last_run_ == Status::InProgress);
 			const bool cancel_requested = try_cancel_;
+			const Status status = task().tick(cancel_requested);
 			try_cancel_ = false;
-			last_run_ = task().tick(cancel_requested);
-			return last_run_;
+			last_run_ = status;
+			return status;
 		}
 
 		template<typename T, typename E, typename CustomTask>
