@@ -11,7 +11,7 @@ namespace nn
 	{
 		// #TODO: do Task<T, void> if exceptions are disabled
 		template<typename T>
-		class FutureTask : public ICustomTask<T, std::exception_ptr>
+		class FutureTask
 		{
 		public:
 			explicit FutureTask(std::future<T>&& f)
@@ -20,7 +20,7 @@ namespace nn
 			{
 			}
 
-			virtual Status tick(bool cancel_requested) override
+			Status tick(bool cancel_requested)
 			{
 				// std::future<> can't be canceled
 				(void)cancel_requested;
@@ -50,7 +50,7 @@ namespace nn
 				}
 			}
 
-			virtual expected<T, std::exception_ptr>& get() override
+			expected<T, std::exception_ptr>& get()
 			{
 				return result_;
 			}

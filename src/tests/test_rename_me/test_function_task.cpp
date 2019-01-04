@@ -44,14 +44,15 @@ namespace
 	static_assert(ReturnCheck<Task<char, char>&, Task<char, char>>::value
 		, "Task<char, charint> should be returned when using Task<char, char>& f() callback");
 
-	struct TestTask : ICustomTask<void, void>
+	struct TestTask
+		: expected<void, void>
 	{
 		explicit TestTask(Status& status)
 			: status_(status)
 		{
 		}
 
-		virtual Status tick(bool cancel_requested) override
+		Status tick(bool cancel_requested)
 		{
 			if (cancel_requested)
 			{
@@ -60,14 +61,15 @@ namespace
 			return status_;
 		}
 
-		virtual expected<void, void>& get() override
+		expected<void, void>& get()
 		{
-			return dummy_;
+			return *this;
 		}
 
 		Status& status_;
-		expected<void, void> dummy_;
 	};
+
+	static_assert(IsCustomTask<TestTask, void, void>::value, "");
 
 	Task<> make_test_task(Scheduler& sch, Status& status)
 	{

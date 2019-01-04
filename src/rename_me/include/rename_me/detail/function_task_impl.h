@@ -24,7 +24,6 @@ namespace nn
 			using is_expected = std::bool_constant<false>;
 			using is_task = std::bool_constant<false>;
 			using type = Task<R, void>;
-			using custom_task = ICustomTask<R, void>;
 			using expected_type = expected<R, void>;
 		};
 
@@ -34,7 +33,6 @@ namespace nn
 			using is_expected = std::bool_constant<true>;
 			using is_task = std::bool_constant<false>;
 			using type = Task<T, E>;
-			using custom_task = ICustomTask<T, E>;
 			using expected_type = expected<T, E>;
 		};
 
@@ -44,7 +42,6 @@ namespace nn
 			using is_expected = std::bool_constant<false>;
 			using is_task = std::bool_constant<true>;
 			using type = Task<T, E>;
-			using custom_task = ICustomTask<T, E>;
 			using expected_type = expected<T, E>;
 		};
 
@@ -67,12 +64,9 @@ namespace nn
 		template<
 			// FunctionTaskReturn helper
 			typename Return
-			, typename Invoker
-			// Proper ICustomTask<T, E>
-			, typename CustomTask = typename Return::custom_task>
+			, typename Invoker>
 		class FunctionTask
-			: public CustomTask
-			, private Invoker
+			: private Invoker
 		{
 		public:
 			using Value = std::variant<
@@ -96,7 +90,7 @@ namespace nn
 			{
 			}
 
-			virtual ~FunctionTask() override
+			~FunctionTask()
 			{
 				if (invoked_)
 				{
@@ -109,7 +103,7 @@ namespace nn
 			FunctionTask(const FunctionTask&) = delete;
 			FunctionTask& operator=(const FunctionTask&) = delete;
 
-			virtual Status tick(bool cancel_requested) override
+			Status tick(bool cancel_requested)
 			{
 				if (cancel_requested && !invoked_)
 				{
@@ -174,7 +168,7 @@ namespace nn
 				return task.status();
 			}
 
-			virtual typename Return::expected_type& get() override
+			typename Return::expected_type& get()
 			{
 				return (IsTask() ? get_task().get() : get_expected());
 			}

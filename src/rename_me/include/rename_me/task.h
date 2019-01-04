@@ -4,6 +4,8 @@
 #include <rename_me/detail/function_task_impl.h>
 
 #include <memory>
+#include <type_traits>
+
 #include <cassert>
 
 namespace nn
@@ -30,8 +32,9 @@ namespace nn
 
 	public:
 		template<typename CustomTask, typename... Args>
-		// #TODO: requires std::is_base_of<ICustomTask<T, E>, CustomTask>
-		static Task make(Scheduler& scheduler, Args&&... args);
+		static
+			typename std::enable_if<IsCustomTask<CustomTask, T, E>::value, Task>::type
+				make(Scheduler& scheduler, Args&&... args);
 		~Task();
 		Task(Task&& rhs) noexcept;
 		Task& operator=(Task&& rhs) noexcept;
@@ -146,7 +149,9 @@ namespace nn
 
 	template<typename T, typename E>
 	template<typename CustomTask, typename... Args>
-	/*static*/ Task<T, E> Task<T, E>::make(Scheduler& scheduler, Args&&... args)
+	/*static*/
+		typename std::enable_if<IsCustomTask<CustomTask, T, E>::value, Task<T, E>>::type
+			Task<T, E>::make(Scheduler& scheduler, Args&&... args)
 	{
 		using InternalTask = detail::InternalCustomTask<T, E, CustomTask>;
 		auto impl = std::make_shared<InternalTask>(

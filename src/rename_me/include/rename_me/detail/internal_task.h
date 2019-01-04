@@ -37,6 +37,8 @@ namespace nn
 			: public InternalTask<T, E>
 			, private CustomTask
 		{
+			static_assert(IsCustomTask<CustomTask, T, E>::value
+				, "CustomTask should satisfy CustomTask<T, E> interface");
 		public:
 			template<typename... Args>
 			explicit InternalCustomTask(Scheduler& scheduler, Args&&... args);
