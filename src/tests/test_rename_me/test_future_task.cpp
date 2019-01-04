@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 #include <rename_me/future_task.h>
 
+#include "test_tools.h"
+
 using namespace nn;
 
 TEST(FutureTask, Can_Be_Constructed_From_Async)

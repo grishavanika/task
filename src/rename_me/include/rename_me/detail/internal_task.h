@@ -28,7 +28,7 @@ namespace nn
 		public:
 			virtual Scheduler& scheduler() = 0;
 			virtual void cancel() = 0;
-			virtual State state() const = 0;
+			virtual Status status() const = 0;
 			virtual expected<T, E>& get_data() = 0;
 		};
 
@@ -46,17 +46,14 @@ namespace nn
 			virtual Scheduler& scheduler() override;
 			virtual Status update() override;
 			virtual void cancel() override;
-			virtual State state() const override;
+			virtual Status status() const override;
 			virtual expected<T, E>& get_data() override;
 
 		private:
 			Scheduler& scheduler_;
 			// #TODO: looks like it's possible to have some other "packed"
 			// representation for these flags to have single atomic<>.
-			// #TODO: looks like `last_run_` and `canceled_` (e.g., state())
-			// should be glued together to guaranty nicer thread-safety/consistency stuff
 			std::atomic<Status> last_run_;
-			std::atomic_bool canceled_;
 			std::atomic_bool try_cancel_;
 		};
 
@@ -76,7 +73,6 @@ namespace nn
 			: CustomTask(std::forward<Args>(args)...)
 			, scheduler_(scheduler)
 			, last_run_(Status::InProgress)
-			, canceled_(false)
 			, try_cancel_(false)
 		{
 		}
@@ -99,16 +95,14 @@ namespace nn
 			assert(last_run_ == Status::InProgress);
 			const bool cancel_requested = try_cancel_;
 			try_cancel_ = false;
-			const State state = task().tick(cancel_requested);
-			canceled_ = state.canceled;
-			last_run_ = state.status;
+			last_run_ = task().tick(cancel_requested);
 			return last_run_;
 		}
 
 		template<typename T, typename E, typename CustomTask>
-		State InternalCustomTask<T, E, CustomTask>::state() const
+		Status InternalCustomTask<T, E, CustomTask>::status() const
 		{
-			return State(last_run_, canceled_);
+			return last_run_;
 		}
 
 		template<typename T, typename E, typename CustomTask>

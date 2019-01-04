@@ -20,7 +20,7 @@ namespace nn
 			{
 			}
 
-			virtual State tick(bool cancel_requested) override
+			virtual Status tick(bool cancel_requested) override
 			{
 				// std::future<> can't be canceled
 				(void)cancel_requested;

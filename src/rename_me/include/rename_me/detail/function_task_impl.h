@@ -59,6 +59,11 @@ namespace nn
 		template<typename F, typename ArgsTuple>
 		using FunctionTaskReturnT = typename FunctionTaskReturn<F, ArgsTuple>::type;
 
+		// `Invoker` is:
+		//  (1) `auto invoke()` that returns result of functor invocation.
+		//  (2) `bool can_invoke()` that returns true if invoke() call is allowed.
+		//    Otherwise task will be marked as canceled.
+		//  (3) `bool wait() const` that returns true if invoke() call is delayed.
 		template<
 			// FunctionTaskReturn helper
 			typename Return
@@ -70,13 +75,6 @@ namespace nn
 			, private Invoker
 		{
 		public:
-			enum class Step : std::uint8_t
-			{
-				None,
-				Invoked,
-				Canceled,
-			};
-			
 			using Value = std::variant<
 				typename Return::type // Either Task<> or
 				, typename Return::expected_type>; // expected<>
@@ -94,14 +92,13 @@ namespace nn
 			explicit FunctionTask(Invoker&& invoker)
 				: Invoker(std::move(invoker))
 				, value_()
-				, step_(Step::None)
-				, value_set_(false)
+				, invoked_(false)
 			{
 			}
 
 			virtual ~FunctionTask() override
 			{
-				if (value_set_)
+				if (invoked_)
 				{
 					value().~Value();
 				}
@@ -112,37 +109,29 @@ namespace nn
 			FunctionTask(const FunctionTask&) = delete;
 			FunctionTask& operator=(const FunctionTask&) = delete;
 
-			virtual State tick(bool cancel_requested) override
+			virtual Status tick(bool cancel_requested) override
 			{
-				if (cancel_requested && (step_ == Step::None))
+				if (cancel_requested && !invoked_)
 				{
-					step_ = Step::Canceled;
-					return State(Status::Failed, true/*canceled*/);
+					return Status::Canceled;
 				}
-				if (step_ == Step::Canceled)
-				{
-					return Status::Failed;
-				}
-				if (Invoker::wait())
-				{
-					assert(step_ == Step::None);
-					return Status::InProgress;
-				}
-
-				if (IsTask() && (step_ == Step::Invoked))
+				if (IsTask() && invoked_)
 				{
 					return tick_task(cancel_requested);
 				}
-
-				if (!Invoker::can_invoke())
+				if (const_invoker().wait())
 				{
-					step_ = Step::Canceled;
-					return State(Status::Failed, true/*canceled*/);
+					assert(!invoked_);
+					return Status::InProgress;
+				}
+				if (!invoker().can_invoke())
+				{
+					return Status::Canceled;
 				}
 
-				assert(step_ == Step::None);
-				step_ = Step::Invoked;
+				assert(!invoked_);
 				call_impl(IsApplyVoid());
+				invoked_ = true;
 
 				if (IsExpected())
 				{
@@ -155,13 +144,13 @@ namespace nn
 					return tick_task(cancel_requested);
 				}
 
-				// Single T was returned, we are done right after call
+				// Single value was returned, we are done right after call
 				return Status::Successful;
 			}
 
 			typename Return::type& get_task()
 			{
-				assert(value_set_);
+				assert(invoked_);
 				auto& v = value();
 				assert(v.index() == 0);
 				return std::get<0>(v);
@@ -169,20 +158,20 @@ namespace nn
 
 			typename Return::expected_type& get_expected()
 			{
-				assert(value_set_);
+				assert(invoked_);
 				auto& v = value();
 				assert(v.index() == 1);
 				return std::get<1>(v);
 			}
 
-			State tick_task(bool cancel_requested)
+			Status tick_task(bool cancel_requested)
 			{
 				auto& task = get_task();
 				if (cancel_requested)
 				{
 					task.try_cancel();
 				}
-				return State(task.status(), task.is_canceled());
+				return task.status();
 			}
 
 			virtual typename Return::expected_type& get() override
@@ -194,10 +183,9 @@ namespace nn
 			{
 				using Expected = typename Return::expected_type;
 				new(static_cast<void*>(std::addressof(value_))) Value(Expected());
-				value_set_ = true;
 				assert(!IsTask()
 					&& "void f() should construct expected<void, ...> return");
-				Invoker::invoke();
+				invoker().invoke();
 			}
 
 			void call_impl(std::false_type/*f(...) is NOT void*/)
@@ -205,8 +193,7 @@ namespace nn
 				// f() returns Task<> or single value T or expected<>.
 				// In any case std::variant<> c-tor will resolve to proper active
 				// member since Task<> can't be constructed from T or expected.
-				new(static_cast<void*>(std::addressof(value_))) Value(Invoker::invoke());
-				value_set_ = true;
+				new(static_cast<void*>(std::addressof(value_))) Value(invoker().invoke());
 				assert((!IsTask() && (value().index() == 1))
 					|| ( IsTask() && (value().index() == 0)));
 			}
@@ -221,13 +208,17 @@ namespace nn
 				return static_cast<Invoker&>(*this);
 			}
 
+			const Invoker& const_invoker()
+			{
+				return static_cast<const Invoker&>(*this);
+			}
+
 		private:
 			using ValueStorage = typename std::aligned_storage<
 				sizeof(Value), alignof(Value)>::type;
 
 			ValueStorage value_;
-			Step step_;
-			bool value_set_;
+			bool invoked_;
 		};
 
 	} // namespace detail

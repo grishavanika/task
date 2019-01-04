@@ -189,7 +189,7 @@ namespace nn
 	Status Task<T, E>::status() const
 	{
 		assert(task_);
-		return task_->state().status;
+		return task_->status();
 	}
 
 	template<typename T, typename E>
@@ -201,20 +201,22 @@ namespace nn
 	template<typename T, typename E>
 	bool Task<T, E>::is_finished() const
 	{
-		return !is_in_progress();
+		return (status() != Status::InProgress);
 	}
 
 	template<typename T, typename E>
 	bool Task<T, E>::is_canceled() const
 	{
 		assert(task_);
-		return task_->state().canceled;
+		return (status() == Status::Canceled);
 	}
 
 	template<typename T, typename E>
 	bool Task<T, E>::is_failed() const
 	{
-		return (status() == Status::Failed);
+		const Status s = status();
+		return (s == Status::Failed)
+			|| (s == Status::Canceled);
 	}
 
 	template<typename T, typename E>
@@ -298,7 +300,7 @@ namespace nn
 
 			bool wait() const
 			{
-				return (task->state().status == Status::InProgress);
+				return (task->status() == Status::InProgress);
 			}
 
 			InternalTaskPtr task;

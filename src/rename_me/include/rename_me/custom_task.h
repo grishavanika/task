@@ -9,24 +9,13 @@ namespace nn
 		InProgress,
 		Successful,
 		Failed,
-	};
-
-	struct State
-	{
-		Status status;
-		bool canceled;
-
-		State(Status s, bool do_cancel = false)
-			: status(s)
-			, canceled(do_cancel)
-		{
-		}
+		Canceled,
 	};
 
 	// #TODO: we do not need run-time interface.
 	// Make it as concept. E.g., CustomTask is any class
 	// that supports functions:
-	//  1. State tick(bool cancel_requested)
+	//  1. Status tick(bool cancel_requested)
 	//  2. expected<T, E>& get()
 	template<typename T, typename E>
 	class ICustomTask
@@ -35,7 +24,7 @@ namespace nn
 		virtual ~ICustomTask() = default;
 
 		// Invoked on Scheduler's thread.
-		virtual State tick(bool cancel_requested) = 0;
+		virtual Status tick(bool cancel_requested) = 0;
 		// Implementation needs to guaranty that returned value
 		// is "some" valid value once tick() returns finished status.
 		// To be thread-safe, get() value needs to be set before

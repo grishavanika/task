@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 #include <rename_me/function_task.h>
 
+#include "test_tools.h"
+
 using namespace nn;
 
 namespace
@@ -44,18 +46,16 @@ namespace
 
 	struct TestTask : ICustomTask<void, void>
 	{
-		explicit TestTask(Status& status, bool& canceled)
+		explicit TestTask(Status& status)
 			: status_(status)
-			, canceled_(canceled)
 		{
 		}
 
-		virtual State tick(bool cancel_requested) override
+		virtual Status tick(bool cancel_requested) override
 		{
 			if (cancel_requested)
 			{
-				canceled_ = true;
-				return State(Status::Failed, canceled_);
+				return Status::Canceled;
 			}
 			return status_;
 		}
@@ -66,13 +66,12 @@ namespace
 		}
 
 		Status& status_;
-		bool& canceled_;
 		expected<void, void> dummy_;
 	};
 
-	Task<> make_test_task(Scheduler& sch, Status& status, bool& canceled)
+	Task<> make_test_task(Scheduler& sch, Status& status)
 	{
-		return Task<>::template make<TestTask>(sch, status, canceled);
+		return Task<>::template make<TestTask>(sch, status);
 	}
 
 } // namespace
@@ -138,7 +137,7 @@ TEST(FunctionTask, Can_Be_Canceled_Before_First_Call_To_Tick)
 	ASSERT_TRUE(task.is_canceled());
 	ASSERT_FALSE(task.is_in_progress());
 	ASSERT_TRUE(task.is_finished());
-	ASSERT_EQ(Status::Failed, task.status());
+	ASSERT_EQ(Status::Canceled, task.status());
 	ASSERT_EQ(0, calls_count);
 }
 
@@ -276,13 +275,12 @@ TEST(FunctionTask, Cancel_Requested_For_Inner_Task)
 	Scheduler sch;
 
 	Status status = Status::InProgress;
-	bool canceled = false;
 	bool invoked = false;
 	Task<> task = make_task(sch
 		, [&]
 	{
 		invoked = true;
-		return make_test_task(sch, status, canceled);
+		return make_test_task(sch, status);
 	});
 
 	ASSERT_FALSE(invoked);
@@ -293,7 +291,6 @@ TEST(FunctionTask, Cancel_Requested_For_Inner_Task)
 	task.try_cancel();
 	ASSERT_EQ(std::size_t(0), sch.poll());
 	ASSERT_EQ(std::size_t(2), sch.poll());
-	ASSERT_EQ(Status::Failed, task.status());
-	ASSERT_TRUE(canceled);
+	ASSERT_EQ(Status::Canceled, task.status());
 	ASSERT_TRUE(task.is_canceled());
 }

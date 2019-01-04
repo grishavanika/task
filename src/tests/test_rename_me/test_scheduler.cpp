@@ -2,6 +2,8 @@
 #include <rename_me/scheduler.h>
 #include <rename_me/function_task.h>
 
+#include "test_tools.h"
+
 #include <thread>
 
 using namespace nn;
