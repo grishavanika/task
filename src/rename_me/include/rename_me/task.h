@@ -305,7 +305,7 @@ namespace nn
 			{
 			}
 
-			auto invoke()
+			decltype(auto) invoke()
 			{
 				Function& f = static_cast<Callable&>(*this).get();
 				return std::move(f)(Task(task));

@@ -33,7 +33,7 @@ namespace nn
 			{
 			}
 
-			auto invoke()
+			decltype(auto) invoke()
 			{
 				Function& f = static_cast<Callable&>(*this).get();
 				auto& args = static_cast<ArgsTuple&>(*this);

@@ -239,7 +239,11 @@ namespace nn
 
 			void call_impl(std::false_type/*f(...) is NOT void*/)
 			{
-				Storage::set_once(invoker().invoke());
+				// In case f() returns reference, e.g.: T& f() -
+				// move it to our storage since we have API
+				// that promises to return expected<T, ...> if function
+				// returns T&
+				Storage::set_once(std::move(invoker().invoke()));
 			}
 
 			Invoker& invoker()
