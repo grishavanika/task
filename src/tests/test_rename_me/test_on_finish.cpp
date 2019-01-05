@@ -109,6 +109,17 @@ TEST(OnFinish, Can_Be_Chained)
 	ASSERT_EQ(2, task3.get().value());
 }
 
+TEST(OnFinish, Then_Is_Alias_For_On_Finish)
+{
+	Scheduler sch;
+	Task<> task = make_task(sch, [] { });
+	Task<> then = task.then([](const Task<>&) {});
+	Task<> on_finish = task.on_finish([](const Task<>&) {});
+	(void)sch.poll();
+	ASSERT_FALSE(sch.has_tasks());
+	ASSERT_EQ(then.status(), on_finish.status());
+}
+
 TEST(OnFinish, Can_Be_Called_Multiple_Times_On_Same_Task)
 {
 	Scheduler sch;

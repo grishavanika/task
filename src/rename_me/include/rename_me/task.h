@@ -90,6 +90,17 @@ namespace nn
 			-> decltype(on_finish(
 				std::declval<Scheduler&>(), std::forward<F>(f)));
 
+		// Alias for on_finish()
+		template<typename F>
+		auto then(Scheduler& scheduler, F&& f)
+			-> decltype(on_finish(scheduler, std::forward<F>(f)));
+
+		// Executes then() with this task's scheduler
+		template<typename F>
+		auto then(F&& f)
+			-> decltype(then(
+				std::declval<Scheduler&>(), std::forward<F>(f)));
+
 		template<typename F>
 		auto on_fail(Scheduler& scheduler, F&& f)
 			-> decltype(on_finish(scheduler, std::forward<F>(f)));
@@ -341,6 +352,23 @@ namespace nn
 	{
 		assert(task_);
 		return on_finish(task_->scheduler(), std::forward<F>(f));
+	}
+
+	template<typename T, typename E>
+	template<typename F>
+	auto Task<T, E>::then(Scheduler& scheduler, F&& f)
+		-> decltype(on_finish(scheduler, std::forward<F>(f)))
+	{
+		return on_finish(scheduler, std::forward<F>(f));
+	}
+
+	template<typename T, typename E>
+	template<typename F>
+	auto Task<T, E>::then(F&& f)
+		-> decltype(then(
+			std::declval<Scheduler&>(), std::forward<F>(f)))
+	{
+		return then(task_->scheduler(), std::forward<F>(f));
 	}
 
 	template<typename T, typename E>
