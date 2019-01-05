@@ -122,6 +122,50 @@ namespace nn
 		// Help MSVC to out-of-class definition of the on_finish() function
 		template<typename F, typename ArgsTuple>
 		using FunctionTaskReturnT = typename FunctionTaskReturn<F, ArgsTuple>::type;
+		
+		// #TODO: rename to EboStorage and move to, for example, lazy_storage.h
+		template<bool IsEbo, typename F>
+		struct NN_EBO_CLASS EBOFunctorImpl : private F
+		{
+			explicit EBOFunctorImpl(F&& f)
+				: F(std::move(f))
+			{
+			}
+
+			F& get()
+			{
+				return *this;
+			}
+		};
+
+		template<typename F>
+		struct EBOFunctorImpl<false/*No EBO*/, F>
+		{
+			EBOFunctorImpl(F&& f)
+				: f_(std::move(f))
+			{
+			}
+
+			F& get()
+			{
+				return f_;
+			}
+
+		private:
+			F f_;
+		};
+
+		template<typename F>
+		struct NN_EBO_CLASS EBOFunctor :
+			EBOFunctorImpl<
+				std::is_empty<F>::value && !std::is_final<F>::value
+				, F>
+		{
+			using Base = EBOFunctorImpl<
+				std::is_empty<F>::value && !std::is_final<F>::value
+				, F>;
+			using Base::Base;
+		};
 
 		// `Invoker` is:
 		//  (1) `auto invoke()` that returns result of functor invocation.

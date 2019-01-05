@@ -21,19 +21,21 @@ namespace nn
 		using FunctionTaskReturn = detail::FunctionTaskReturn<F, ArgsTuple>;
 		using ReturnTask = typename FunctionTaskReturn::type;
 
-		struct NN_EBO_CLASS Invoker :
-			private Function,
-			private ArgsTuple
+		struct NN_EBO_CLASS Invoker
+			: private detail::EBOFunctor<Function>
+			, private ArgsTuple
 		{
-			explicit Invoker(Function&& f, ArgsTuple&& args)
-				: Function(std::move(f))
+			using Callable = detail::EBOFunctor<Function>;
+
+			explicit Invoker(Function f, ArgsTuple&& args)
+				: Callable(std::move(f))
 				, ArgsTuple(std::move(args))
 			{
 			}
 
 			auto invoke()
 			{
-				auto& f = static_cast<Function&>(*this);
+				Function& f = static_cast<Callable&>(*this).get();
 				auto& args = static_cast<ArgsTuple&>(*this);
 				return std::apply(std::move(f), std::move(args));
 			}

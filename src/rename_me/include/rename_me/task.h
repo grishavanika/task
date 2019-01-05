@@ -293,11 +293,13 @@ namespace nn
 		using ReturnTask = typename FunctionTaskReturn::type;
 
 		struct NN_EBO_CLASS Invoker
-			: private Function
+			: private detail::EBOFunctor<Function>
 			, private CallPredicate
 		{
-			explicit Invoker(Function&& f, CallPredicate p, InternalTaskPtr t)
-				: Function(std::move(f))
+			using Callable = detail::EBOFunctor<Function>;
+
+			explicit Invoker(Function f, CallPredicate p, InternalTaskPtr t)
+				: Callable(std::move(f))
 				, CallPredicate(std::move(p))
 				, task(std::move(t))
 			{
@@ -305,7 +307,7 @@ namespace nn
 
 			auto invoke()
 			{
-				auto& f = static_cast<Function&>(*this);
+				Function& f = static_cast<Callable&>(*this).get();
 				return std::move(f)(Task(task));
 			}
 

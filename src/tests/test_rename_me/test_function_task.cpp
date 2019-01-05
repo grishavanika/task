@@ -46,10 +46,12 @@ namespace
 		, "Task<char, charint> should be returned when using Task<char, char>& f() callback");
 
 	// Check minimum possible size of internal FunctionTask
-	struct EBOFunctor { void operator()() const { } };
+	struct EBOFunction { void operator()() const { } };
 	using EBOArgs = std::tuple<>;
-	using EBOFunctionTaskReturn = detail::FunctionTaskReturn<EBOFunctor, EBOArgs>;
-	struct NN_EBO_CLASS EBOInvoker : private EBOFunctor, private EBOArgs
+	using EBOFunctionTaskReturn = detail::FunctionTaskReturn<EBOFunction, EBOArgs>;
+	struct NN_EBO_CLASS EBOInvoker
+		: private detail::EBOFunctor<EBOFunction>
+		, private EBOArgs
 	{
 		void invoke() { }
 		bool can_invoke() const { return true; }
@@ -339,4 +341,155 @@ TEST(FunctionTask, Returns_Non_Default_Constructiable_Value)
 	Task<Value> task = make_task(sch, [&] { return Value(1); });
 	(void)sch.poll();
 	ASSERT_EQ(1, task.get().value().data);
+}
+
+TEST(FunctionTask, Can_Be_Invoked_From_EBO_Functor)
+{
+	Scheduler sch;
+
+	struct Functor
+	{
+		int operator()(int v) const
+		{
+			return v;
+		}
+
+		int call(int v) const
+		{
+			return operator()(v);
+		}
+
+		int operator()(std::unique_ptr<int>&& v) const
+		{
+			return *v * 3;
+		}
+	};
+	{
+		Task<int> task = make_task(sch, Functor(), 10);
+		(void)sch.poll();
+		ASSERT_EQ(10, task.get().value());
+	}
+	{
+		Task<int> task = make_task(sch, Functor(), std::make_unique<int>(10));
+		(void)sch.poll();
+		ASSERT_EQ(30, task.get().value());
+	}
+	{
+		Functor f;
+		Task<int> task = make_task(sch, &Functor::call, &f, 10);
+		(void)sch.poll();
+		ASSERT_EQ(10, task.get().value());
+	}
+}
+
+TEST(FunctionTask, Can_Be_Invoked_From_Functor_With_Data)
+{
+	Scheduler sch;
+
+	struct Functor
+	{
+		std::unique_ptr<int> data = std::make_unique<int>(2);
+
+		int operator()(int v) const
+		{
+			return *data * v;
+		}
+
+		int call(int v) const
+		{
+			return operator()(v);
+		}
+
+		int operator()(std::unique_ptr<int>&& v) const
+		{
+			return *data * *v * 3;
+		}
+	};
+	{
+		Task<int> task = make_task(sch, Functor(), 10);
+		(void)sch.poll();
+		ASSERT_EQ(2 * 10, task.get().value());
+	}
+	{
+		Task<int> task = make_task(sch, Functor(), std::make_unique<int>(10));
+		(void)sch.poll();
+		ASSERT_EQ(2 * 30, task.get().value());
+	}
+	{
+		Functor f;
+		Task<int> task = make_task(sch, &Functor::call, &f, 10);
+		(void)sch.poll();
+		ASSERT_EQ(2 * 10, task.get().value());
+	}
+}
+
+TEST(FunctionTask, Can_Be_Invoked_From_Function_Pointer)
+{
+	Scheduler sch;
+
+	struct Function
+	{
+		static int call(int v)
+		{
+			return v;
+		}
+
+		static int call_unique(std::unique_ptr<int>&& v)
+		{
+			return *v * 3;
+		}
+	};
+	{
+		Task<int> task = make_task(sch, &Function::call, 10);
+		(void)sch.poll();
+		ASSERT_EQ(10, task.get().value());
+	}
+	{
+		Task<int> task = make_task(sch, &Function::call_unique, std::make_unique<int>(10));
+		(void)sch.poll();
+		ASSERT_EQ(30, task.get().value());
+	}
+}
+
+TEST(FunctionTask, Can_Be_Invoked_From_L_Value_Functor)
+{
+	Scheduler sch;
+
+	struct Functor
+	{
+		int operator()(int v) const
+		{
+			return v;
+		}
+	};
+	{
+		Functor f;
+		Task<int> task = make_task(sch, f, 10);
+		(void)sch.poll();
+		ASSERT_EQ(10, task.get().value());
+	}
+}
+
+TEST(FunctionTask, Can_Be_Invoked_From_Move_Only_Functor)
+{
+	Scheduler sch;
+
+	struct Functor
+	{
+		Functor() = default;
+		Functor(Functor&&) = default;
+		Functor& operator=(Functor&&) = delete;
+		Functor(const Functor&) = delete;
+		Functor& operator=(const Functor&) = delete;
+
+		int operator()(int v) const
+		{
+			return v;
+		}
+	};
+	{
+		Task<int> task = make_task(sch, Functor(), 10);
+		(void)sch.poll();
+		ASSERT_EQ(10, task.get().value());
+	}
 }
