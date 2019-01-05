@@ -4,10 +4,12 @@
 #include <utility>
 #include <type_traits>
 
+#include <cstdint>
+
 namespace nn
 {
 
-	enum class Status
+	enum class Status : std::uint8_t
 	{
 		InProgress,
 		Successful,

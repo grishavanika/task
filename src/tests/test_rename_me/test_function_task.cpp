@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <rename_me/function_task.h>
+#include <rename_me/detail/config.h>
 
 #include "test_tools.h"
 
@@ -44,6 +45,33 @@ namespace
 	static_assert(ReturnCheck<Task<char, char>&, Task<char, char>>::value
 		, "Task<char, charint> should be returned when using Task<char, char>& f() callback");
 
+	// Check minimum possible size of internal FunctionTask
+	struct EBOFunctor { void operator()() const { } };
+	using EBOArgs = std::tuple<>;
+	using EBOFunctionTaskReturn = detail::FunctionTaskReturn<EBOFunctor, EBOArgs>;
+	struct NN_EBO_CLASS EBOInvoker : private EBOFunctor, private EBOArgs
+	{
+		void invoke() { }
+		bool can_invoke() const { return true; }
+		bool wait() const { return false; }
+	};
+	using EBOFunctionTask = detail::FunctionTask<EBOFunctionTaskReturn, EBOInvoker>;
+	static_assert(sizeof(EBOFunctionTask) == sizeof(bool)
+		, "detail::FunctionTask<> uses only bool as data member. "
+		"Everything else should be EBO-enabled");
+
+	// Set/check minimum possible size of internal CustomTask.
+	// May change in the future
+	struct EBOTask : expected<void, void>
+	{
+		Status tick(bool) { return Status::Successful; }
+		expected<void, void>& get() { return *this; }
+	};
+	static_assert(std::is_empty<EBOTask>::value, "");
+	static_assert(sizeof(detail::InternalCustomTask<void, void, EBOTask>)
+		== 3 * sizeof(void*), "");
+
+	// Test-controlled task
 	struct TestTask
 		: expected<void, void>
 	{
@@ -312,4 +340,3 @@ TEST(FunctionTask, Returns_Non_Default_Constructiable_Value)
 	(void)sch.poll();
 	ASSERT_EQ(1, task.get().value().data);
 }
-

@@ -1,6 +1,7 @@
 #pragma once
 #include <rename_me/storage.h>
 #include <rename_me/detail/internal_task.h>
+#include <rename_me/detail/config.h>
 #include <rename_me/detail/cpp_20.h>
 #include <rename_me/detail/lazy_storage.h>
 
@@ -132,7 +133,7 @@ namespace nn
 			typename Return
 			, typename Invoker
 			, typename Storage = typename Return::storage>
-		class FunctionTask
+		class NN_EBO_CLASS FunctionTask
 			: private Invoker
 			, private Storage
 		{

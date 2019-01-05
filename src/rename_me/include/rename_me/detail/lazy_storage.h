@@ -1,4 +1,6 @@
 #pragma once
+#include <rename_me/detail/config.h>
+
 #include <type_traits>
 #include <memory>
 
@@ -26,7 +28,7 @@ namespace nn
 		class LazyStorageImpl;
 
 		template<typename T>
-		class LazyStorageImpl<T, true/*IsEbo*/> : T
+		class NN_EBO_CLASS LazyStorageImpl<T, true/*IsEbo*/> : T
 		{
 		public:
 			using is_ebo = std::true_type;

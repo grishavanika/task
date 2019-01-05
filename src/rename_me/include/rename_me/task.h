@@ -2,6 +2,7 @@
 #include <rename_me/custom_task.h>
 #include <rename_me/detail/cpp_20.h>
 #include <rename_me/detail/function_task_impl.h>
+#include <rename_me/detail/config.h>
 
 #include <memory>
 #include <type_traits>
@@ -280,7 +281,7 @@ namespace nn
 		using FunctionTaskReturn = detail::FunctionTaskReturn<F, std::tuple<const Task&>>;
 		using ReturnTask = typename FunctionTaskReturn::type;
 
-		struct Invoker
+		struct NN_EBO_CLASS Invoker
 			: private Function
 			, private CallPredicate
 		{

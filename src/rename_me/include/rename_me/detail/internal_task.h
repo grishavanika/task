@@ -35,7 +35,6 @@ namespace nn
 		template<typename T, typename E, typename CustomTask>
 		class InternalCustomTask final
 			: public InternalTask<T, E>
-			, private CustomTask
 		{
 			static_assert(IsCustomTask<CustomTask, T, E>::value
 				, "CustomTask should satisfy CustomTask<T, E> interface");
@@ -57,6 +56,9 @@ namespace nn
 			// representation for these flags to have single atomic<>.
 			std::atomic<Status> last_run_;
 			std::atomic_bool try_cancel_;
+			// CustomTask can be empty class or sizeof(CustomTask) may be 1 byte.
+			// Put it after 1-byte members to utilize free alignment we have
+			CustomTask task_;
 		};
 
 	} // namespace detail
@@ -72,17 +74,17 @@ namespace nn
 		template<typename... Args>
 		/*explicit*/ InternalCustomTask<T, E, CustomTask>::InternalCustomTask(
 			Scheduler& scheduler, Args&&... args)
-			: CustomTask(std::forward<Args>(args)...)
-			, scheduler_(scheduler)
+			: scheduler_(scheduler)
 			, last_run_(Status::InProgress)
 			, try_cancel_(false)
+			, task_(std::forward<Args>(args)...)
 		{
 		}
 
 		template<typename T, typename E, typename CustomTask>
 		CustomTask& InternalCustomTask<T, E, CustomTask>::task()
 		{
-			return static_cast<CustomTask&>(*this);
+			return task_;
 		}
 
 		template<typename T, typename E, typename CustomTask>

@@ -21,7 +21,7 @@ namespace nn
 		using FunctionTaskReturn = detail::FunctionTaskReturn<F, ArgsTuple>;
 		using ReturnTask = typename FunctionTaskReturn::type;
 
-		struct Invoker :
+		struct NN_EBO_CLASS Invoker :
 			private Function,
 			private ArgsTuple
 		{
