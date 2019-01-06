@@ -1,6 +1,7 @@
 #pragma once
 #include <rename_me/task.h>
-#include <rename_me/detail/function_task_impl.h>
+#include <rename_me/detail/function_task_base.h>
+#include <rename_me/detail/ebo_storage.h>
 
 #include <tuple>
 
@@ -21,10 +22,10 @@ namespace nn
 		using ReturnTask = typename FunctionTaskReturn::type;
 
 		struct NN_EBO_CLASS Invoker
-			: private detail::EBOFunctor<Function>
+			: private detail::EboStorage<Function>
 			, private ArgsTuple
 		{
-			using Callable = detail::EBOFunctor<Function>;
+			using Callable = detail::EboStorage<Function>;
 
 			explicit Invoker(Function f, ArgsTuple&& args)
 				: Callable(std::move(f))

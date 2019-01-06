@@ -1,8 +1,7 @@
 #pragma once
 #include <rename_me/custom_task.h>
 #include <rename_me/detail/cpp_20.h>
-#include <rename_me/detail/function_task_impl.h>
-#include <rename_me/detail/config.h>
+#include <rename_me/detail/function_task_base.h>
 
 #include <memory>
 #include <type_traits>
@@ -166,6 +165,8 @@ namespace nn
 
 #include <rename_me/scheduler.h>
 #include <rename_me/detail/internal_task.h>
+#include <rename_me/detail/config.h>
+#include <rename_me/detail/ebo_storage.h>
 
 #include <utility>
 
@@ -332,10 +333,10 @@ namespace nn
 		using ReturnTask = typename FunctionTaskReturn::type;
 
 		struct NN_EBO_CLASS Invoker
-			: private detail::EBOFunctor<Function>
+			: private detail::EboStorage<Function>
 			, private CallPredicate
 		{
-			using Callable = detail::EBOFunctor<Function>;
+			using Callable = detail::EboStorage<Function>;
 
 			explicit Invoker(Function f, CallPredicate p, InternalTaskPtr t)
 				: Callable(std::move(f))

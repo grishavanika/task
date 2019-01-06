@@ -1,5 +1,5 @@
 #pragma once
-#include <rename_me/storage.h>
+#include <rename_me/expected.h>
 #include <rename_me/detail/internal_task.h>
 #include <rename_me/detail/config.h>
 #include <rename_me/detail/cpp_20.h>
@@ -134,50 +134,6 @@ namespace nn
 		// Help MSVC to out-of-class definition of the on_finish() function
 		template<typename F, typename... Args>
 		using FunctionTaskReturnT = typename FunctionTaskReturn<F, Args...>::type;
-		
-		// #TODO: rename to EboStorage and move to, for example, lazy_storage.h
-		template<bool IsEbo, typename F>
-		struct NN_EBO_CLASS EBOFunctorImpl : private F
-		{
-			explicit EBOFunctorImpl(F&& f)
-				: F(std::move(f))
-			{
-			}
-
-			F& get()
-			{
-				return *this;
-			}
-		};
-
-		template<typename F>
-		struct EBOFunctorImpl<false/*No EBO*/, F>
-		{
-			EBOFunctorImpl(F&& f)
-				: f_(std::move(f))
-			{
-			}
-
-			F& get()
-			{
-				return f_;
-			}
-
-		private:
-			F f_;
-		};
-
-		template<typename F>
-		struct NN_EBO_CLASS EBOFunctor :
-			EBOFunctorImpl<
-				std::is_empty<F>::value && !std::is_final<F>::value
-				, F>
-		{
-			using Base = EBOFunctorImpl<
-				std::is_empty<F>::value && !std::is_final<F>::value
-				, F>;
-			using Base::Base;
-		};
 
 		// `Invoker` is:
 		//  (1) `auto invoke()` that returns result of functor invocation.
@@ -185,8 +141,7 @@ namespace nn
 		//    Otherwise task will be marked as canceled.
 		//  (3) `bool wait() const` that returns true if invoke() call is delayed.
 		template<
-			// FunctionTaskReturn helper
-			typename Return
+			typename Return // FunctionTaskReturn helper
 			, typename Invoker
 			, typename Storage = typename Return::storage>
 		class NN_EBO_CLASS FunctionTask

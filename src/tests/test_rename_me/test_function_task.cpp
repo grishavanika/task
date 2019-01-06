@@ -50,7 +50,7 @@ namespace
 	using EBOArgs = std::tuple<>;
 	using EBOFunctionTaskReturn = detail::FunctionTaskReturn<EBOFunction>;
 	struct NN_EBO_CLASS EBOInvoker
-		: private detail::EBOFunctor<EBOFunction>
+		: private detail::EboStorage<EBOFunction>
 		, private EBOArgs
 	{
 		void invoke() { }
