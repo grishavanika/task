@@ -10,18 +10,33 @@ and ability to adapt third-party tasks API.
 
 ```
 #include <rename_me/future_task.h>
+#include <chrono>
+#include <cstdio>
+#include <cassert>
 
 nn::Task<int> DoWork(nn::Scheduler& scheduler, int input)
 {
-	return make_task(scheduler
+	auto task = make_task(scheduler
+		// Run std::async() and wrap std::future<> into Task<>
 		, std::async(std::launch::async, [=]()
 	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		return (2 * input);
 	}))
-		.on_finish([](const nn::Task<int, std::exception_ptr>& task)
+		// When std::async() completes
+		.then([](const nn::Task<int, std::exception_ptr>& task)
 	{
+		// There was no exception
+		assert(task.is_successful());
 		return (3 * task.get().value());
 	});
+
+	// When our `task` completes. Ignore any values, just print something
+	(void)task.then([]
+	{
+		std::puts("Completed");
+	});
+	return task;
 }
 
 int main()
@@ -30,9 +45,9 @@ int main()
 	nn::Task<int> task = DoWork(scheduler, 10);
 	while (task.is_in_progress())
 	{
-		scheduler.tick();
+		scheduler.poll();
 	}
-	return task.get().value();
+	return task.get().value(); // Returns 10 * 2 * 3 = 60
 }
 ```
 
@@ -49,8 +64,7 @@ int main()
 8. Polish memory layout for internal tasks.
 9. Default (thread-local ?) Scheduler's ?
 10. Compare to continuable: https://github.com/Naios/continuable
-11. Add task.then() as alias for .on_finish()
-12.
+11.
 
 # Compilers
 

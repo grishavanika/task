@@ -391,7 +391,7 @@ namespace nn
 		Task<T, E>::on_finish(Scheduler& scheduler, F&& f)
 	{
 		return on_finish_impl(scheduler, std::forward<F>(f)
-			, [](const Task& self) { return true; });
+			, [](const Task&) { return true; });
 	}
 
 	template<typename T, typename E>
