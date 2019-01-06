@@ -18,7 +18,7 @@ namespace nn
 	{
 	}
 
-	void Scheduler::add(TaskPtr task)
+	void Scheduler::add(detail::ErasedTask task)
 	{
 		assert(task);
 		Lock _(guard_);
@@ -59,9 +59,9 @@ namespace nn
 		return finished;
 	}
 
-	std::vector<Scheduler::TaskPtr> Scheduler::get_tasks()
+	std::vector<detail::ErasedTask> Scheduler::get_tasks()
 	{
-		std::vector<TaskPtr> tasks;
+		std::vector<detail::ErasedTask> tasks;
 		Lock _(guard_);
 		tasks = std::move(tasks_);
 		tick_tasks_count_ = tasks.size();
@@ -69,11 +69,11 @@ namespace nn
 		return tasks;
 	}
 
-	void Scheduler::add_tasks(std::vector<TaskPtr> tasks)
+	void Scheduler::add_tasks(std::vector<detail::ErasedTask> tasks)
 	{
 		// Move in-progress tasks back
 		auto it = std::remove_if(std::begin(tasks), std::end(tasks)
-			, [](const TaskPtr& task) { return !task; });
+			, [](const detail::ErasedTask& task) { return !task; });
 
 		Lock _(guard_);
 		tasks_.reserve(tasks_.size() + tasks.size());

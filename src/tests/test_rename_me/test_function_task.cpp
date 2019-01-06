@@ -71,7 +71,7 @@ namespace
 	};
 	static_assert(std::is_empty<EBOTask>::value, "");
 	static_assert(sizeof(detail::InternalCustomTask<void, void, EBOTask>)
-		== 3 * sizeof(void*), "");
+		== 4 * sizeof(void*), "");
 
 	// Test-controlled task
 	struct TestTask

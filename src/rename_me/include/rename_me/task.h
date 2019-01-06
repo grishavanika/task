@@ -1,9 +1,9 @@
 #pragma once
 #include <rename_me/custom_task.h>
 #include <rename_me/detail/cpp_20.h>
+#include <rename_me/detail/internal_task.h>
 #include <rename_me/detail/function_task_base.h>
 
-#include <memory>
 #include <type_traits>
 
 #include <cassert>
@@ -13,14 +13,18 @@ namespace nn
 
 	class Scheduler;
 
-	template<typename T, typename E>
-	class Task;
-
 	template<typename T = void, typename E = void>
 	class Task
 	{
 	private:
-		using InternalTaskPtr = std::shared_ptr<detail::InternalTask<T, E>>;
+		// Reference counting is needed to handle ownership
+		// of task internals for _on_finish()_ implementation.
+		// Without on_finish() API, it's enough to have raw pointer
+		// with custom management of lifetime thru Scheduler
+		// (of course this is true only if Task is move-only.
+		// If copy semantic will be enabled, ref. counted-like pointer
+		// is needed in any case)
+		using InternalTask = detail::RefCountPtr<detail::InternalTask<T, E>>;
 
 		template<typename OtherT, typename OtherE>
 		friend class Task;
@@ -143,7 +147,7 @@ namespace nn
 				std::declval<Scheduler&>(), std::forward<F>(f)));
 
 	private:
-		explicit Task(InternalTaskPtr task);
+		explicit Task(InternalTask task);
 
 		template<typename F, typename CallPredicate
 			, typename ReturnWithTaskArg = detail::FunctionTaskReturn<F, const Task<T, E>&>
@@ -158,7 +162,7 @@ namespace nn
 		void remove();
 
 	private:
-		InternalTaskPtr task_;
+		InternalTask task_;
 	};
 
 } // namespace nn
@@ -174,7 +178,7 @@ namespace nn
 {
 
 	template<typename T, typename E>
-	/*explicit*/ Task<T, E>::Task(InternalTaskPtr task)
+	/*explicit*/ Task<T, E>::Task(InternalTask task)
 		: task_(std::move(task))
 	{
 	}
@@ -185,11 +189,11 @@ namespace nn
 		typename std::enable_if<IsCustomTask<CustomTask, T, E>::value, Task<T, E>>::type
 			Task<T, E>::make(Scheduler& scheduler, Args&&... args)
 	{
-		using InternalTask = detail::InternalCustomTask<T, E, CustomTask>;
-		auto impl = std::make_shared<InternalTask>(
+		using FullTask = detail::InternalCustomTask<T, E, CustomTask>;
+		auto full_task = detail::RefCountPtr<FullTask>::make(
 			scheduler, std::forward<Args>(args)...);
-		scheduler.add(impl);
-		return Task(impl);
+		scheduler.add(full_task.template to_base<detail::TaskBase>());
+		return Task(full_task.template to_base<typename InternalTask::type>());
 	}
 
 	template<typename T, typename E>
@@ -338,10 +342,10 @@ namespace nn
 		{
 			using Callable = detail::EboStorage<Function>;
 
-			explicit Invoker(Function f, CallPredicate p, InternalTaskPtr t)
+			explicit Invoker(Function f, CallPredicate p, const InternalTask& t)
 				: Callable(std::move(f))
 				, CallPredicate(std::move(p))
-				, task(std::move(t))
+				, task(t)
 			{
 			}
 
@@ -362,7 +366,7 @@ namespace nn
 				return (task->status() == Status::InProgress);
 			}
 
-			InternalTaskPtr task;
+			InternalTask task;
 		};
 
 		using FinishTask = detail::FunctionTask<FunctionTaskReturn, Invoker>;

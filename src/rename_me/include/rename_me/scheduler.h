@@ -2,17 +2,11 @@
 #include <rename_me/detail/internal_task.h>
 
 #include <vector>
-#include <memory>
 #include <mutex>
 #include <atomic>
 
 namespace nn
 {
-
-	namespace detail
-	{
-		class TaskBase;
-	} // namespace detail
 
 	class Scheduler
 	{
@@ -31,16 +25,14 @@ namespace nn
 		template<typename T, typename E>
 		friend class Task;
 
-		using TaskPtr = std::shared_ptr<detail::TaskBase>;
+		void add(detail::ErasedTask task);
 
-		void add(TaskPtr task);
-
-		std::vector<TaskPtr> get_tasks();
-		void add_tasks(std::vector<TaskPtr> tasks);
+		std::vector<detail::ErasedTask> get_tasks();
+		void add_tasks(std::vector<detail::ErasedTask> tasks);
 
 	private:
 		std::mutex guard_;
-		std::vector<TaskPtr> tasks_;
+		std::vector<detail::ErasedTask> tasks_;
 		std::atomic<std::size_t> tasks_count_;
 		std::atomic<std::size_t> tick_tasks_count_;
 	};

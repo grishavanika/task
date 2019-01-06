@@ -1,7 +1,7 @@
 #pragma once
 #include <rename_me/custom_task.h>
+#include <rename_me/detail/ref_count_ptr.h>
 
-#include <memory>
 #include <atomic>
 
 #include <cassert>
@@ -20,7 +20,34 @@ namespace nn
 			virtual ~TaskBase() = default;
 
 			virtual Status update() = 0;
+
+		public:
+			// Pointer interface
+			bool remove_ref_count() noexcept
+			{
+				assert(ref_ != 0);
+				return (ref_.fetch_sub(1) == 0);
+			}
+
+			void add_ref_count() noexcept
+			{
+				assert(ref_ != std::numeric_limits<std::uint16_t>::max());
+				ref_.fetch_add(1);
+			}
+
+		protected:
+			std::atomic<std::uint16_t> ref_ = 1;
+			// Put there for better memory layout
+			std::atomic<Status> last_run_ = Status::InProgress;
+			std::atomic_bool try_cancel_ = false;
+			// char alignment[4]; // For x64
 		};
+
+		static_assert(sizeof(TaskBase) <= 2 * sizeof(void*)
+			, "Expecting TaskBase to be virtual pointer + reference count with "
+			"alignment no more then 2 pointers");
+
+		using ErasedTask = RefCountPtr<TaskBase>;
 
 		template<typename T, typename E>
 		class InternalTask : public TaskBase
@@ -36,6 +63,7 @@ namespace nn
 		class InternalCustomTask final
 			: public InternalTask<T, E>
 		{
+			using Base = InternalTask<T, E>;
 			static_assert(IsCustomTask<CustomTask, T, E>::value
 				, "CustomTask should satisfy CustomTask<T, E> interface");
 		public:
@@ -52,12 +80,6 @@ namespace nn
 
 		private:
 			Scheduler& scheduler_;
-			// #TODO: looks like it's possible to have some other "packed"
-			// representation for these flags to have single atomic<>.
-			std::atomic<Status> last_run_;
-			std::atomic_bool try_cancel_;
-			// CustomTask can be empty class or sizeof(CustomTask) may be 1 byte.
-			// Put it after 1-byte members to utilize free alignment we have
 			CustomTask task_;
 		};
 
@@ -75,8 +97,6 @@ namespace nn
 		/*explicit*/ InternalCustomTask<T, E, CustomTask>::InternalCustomTask(
 			Scheduler& scheduler, Args&&... args)
 			: scheduler_(scheduler)
-			, last_run_(Status::InProgress)
-			, try_cancel_(false)
 			, task_(std::forward<Args>(args)...)
 		{
 		}
@@ -96,30 +116,30 @@ namespace nn
 		template<typename T, typename E, typename CustomTask>
 		Status InternalCustomTask<T, E, CustomTask>::update()
 		{
-			assert(last_run_ == Status::InProgress);
-			const bool cancel_requested = try_cancel_;
+			assert(Base::last_run_ == Status::InProgress);
+			const bool cancel_requested = Base::try_cancel_;
 			const Status status = task().tick(cancel_requested);
-			try_cancel_ = false;
-			last_run_ = status;
+			Base::try_cancel_ = false;
+			Base::last_run_ = status;
 			return status;
 		}
 
 		template<typename T, typename E, typename CustomTask>
 		Status InternalCustomTask<T, E, CustomTask>::status() const
 		{
-			return last_run_;
+			return Base::last_run_;
 		}
 
 		template<typename T, typename E, typename CustomTask>
 		void InternalCustomTask<T, E, CustomTask>::cancel()
 		{
-			try_cancel_.store(true);
+			Base::try_cancel_.store(true);
 		}
 
 		template<typename T, typename E, typename CustomTask>
 		expected<T, E>& InternalCustomTask<T, E, CustomTask>::get_data()
 		{
-			assert(last_run_ != Status::InProgress);
+			assert(Base::last_run_ != Status::InProgress);
 			return task().get();
 		}
 
