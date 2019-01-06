@@ -80,8 +80,20 @@ namespace nn
 		//     from functor expected<> (e.g., will be failed if expected contains error).
 		//  3. U (some type that is not Task<> or expected<>)
 		//     then returns Task<U, void> with immediate success status.
+		// 
+		// #TODO: accept Args... so caller can pass valid
+		// INVOKE()-able expression, like:
+		// struct InvokeLike { void call(const Task<>&) {} };
+		// InvokeLike callback;
+		// task.on_finish(&InvokeLike::call, callback)
 		template<typename F>
 		detail::FunctionTaskReturnT<F, const Task<T, E>&>
+			on_finish(Scheduler& scheduler, F&& f);
+
+		// Same as on_finish(), but functor does not need to accept
+		// Task<> instance (e.g., caller discards it and _knows_ that)
+		template<typename F>
+		detail::FunctionTaskReturnT<F>
 			on_finish(Scheduler& scheduler, F&& f);
 
 		// Executes on_finish() with this task's scheduler
@@ -134,8 +146,15 @@ namespace nn
 	private:
 		explicit Task(InternalTaskPtr task);
 
-		template<typename F, typename CallPredicate>
+		template<typename F, typename CallPredicate
+			, typename ReturnWithTaskArg = detail::FunctionTaskReturn<F, const Task<T, E>&>
+			, typename ReturnWithoutTaskArg = detail::FunctionTaskReturn<F>>
 		auto on_finish_impl(Scheduler& scheduler, F&& f, CallPredicate p);
+
+		template<typename F>
+		static decltype(auto) invoke(std::false_type, F& f, const Task&);
+		template<typename F>
+		static decltype(auto) invoke(std::true_type, F& f, const Task& self);
 
 		void remove();
 
@@ -285,11 +304,31 @@ namespace nn
 	}
 
 	template<typename T, typename E>
-	template<typename F, typename CallPredicate>
+	template<typename F>
+	/*static*/ decltype(auto) Task<T, E>::invoke(std::false_type, F& f, const Task&)
+	{
+		return std::move(f)();
+	}
+
+	template<typename T, typename E>
+	template<typename F>
+	/*static*/ decltype(auto) Task<T, E>::invoke(std::true_type, F& f, const Task& self)
+	{
+		return std::move(f)(self);
+	}
+
+	template<typename T, typename E>
+	template<typename F, typename CallPredicate
+		, typename ReturnWithTaskArg
+		, typename ReturnWithoutTaskArg>
 	auto Task<T, E>::on_finish_impl(Scheduler& scheduler, F&& f, CallPredicate p)
 	{
+		using HasTaskArg = typename ReturnWithTaskArg::is_valid;
 		using Function = detail::remove_cvref_t<F>;
-		using FunctionTaskReturn = detail::FunctionTaskReturn<F, const Task&>;
+		using FunctionTaskReturn = std::conditional_t<
+			HasTaskArg::value
+			, ReturnWithTaskArg
+			, ReturnWithoutTaskArg>;
 		using ReturnTask = typename FunctionTaskReturn::type;
 
 		struct NN_EBO_CLASS Invoker
@@ -308,7 +347,7 @@ namespace nn
 			decltype(auto) invoke()
 			{
 				Function& f = static_cast<Callable&>(*this).get();
-				return std::move(f)(Task(task));
+				return Task::invoke(HasTaskArg(), f, Task(task));
 			}
 
 			bool can_invoke()
@@ -344,6 +383,15 @@ namespace nn
 			(void)self;
 			return true;
 		});
+	}
+
+	template<typename T, typename E>
+	template<typename F>
+	detail::FunctionTaskReturnT<F>
+		Task<T, E>::on_finish(Scheduler& scheduler, F&& f)
+	{
+		return on_finish_impl(scheduler, std::forward<F>(f)
+			, [](const Task& self) { return true; });
 	}
 
 	template<typename T, typename E>

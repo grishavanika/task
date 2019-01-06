@@ -113,7 +113,7 @@ namespace nn
 		template<bool, typename F, typename... Args>
 		struct FunctionTaskReturnEnable
 		{
-			static constexpr bool is_valid = false;
+			using is_valid = std::false_type;
 		};
 
 		template<typename F, typename... Args>
@@ -121,7 +121,7 @@ namespace nn
 			: FunctionTaskReturnImpl<remove_cvref_t<
 				std::invoke_result_t<F, Args...>>>
 		{
-			static constexpr bool is_valid = true;
+			using is_valid = std::true_type;
 		};
 
 		template<typename F, typename... Args>

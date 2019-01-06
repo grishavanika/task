@@ -19,18 +19,101 @@ namespace
 	struct ReturnCheck
 	{
 		static R functor(const RootTask&);
+		static R functor_no_task();
 
-		using IsSameWithScheduler = std::is_same<ExpectedTask
+		// on_finish() with/without Scheduler and with/without callable
+		// that accepts Task<>
+		using f_1 = std::is_same<ExpectedTask
 			, decltype(std::declval<RootTask&>().on_finish(
 				std::declval<Scheduler&>(), &ReturnCheck::functor))>;
 
-		using IsSameWithoutScheduler = std::is_same<ExpectedTask
+		using f_2 = std::is_same<ExpectedTask
 			, decltype(std::declval<RootTask&>().on_finish(
 				&ReturnCheck::functor))>;
 
-		static constexpr bool value =
-			IsSameWithScheduler::value
-				&& IsSameWithoutScheduler::value;
+		using f_3 = std::is_same<ExpectedTask
+			, decltype(std::declval<RootTask&>().on_finish(
+				std::declval<Scheduler&>(), &ReturnCheck::functor_no_task))>;
+
+		using f_4 = std::is_same<ExpectedTask
+			, decltype(std::declval<RootTask&>().on_finish(
+				&ReturnCheck::functor_no_task))>;
+
+		// on_success()
+		using s_1 = std::is_same<ExpectedTask
+			, decltype(std::declval<RootTask&>().on_success(
+				std::declval<Scheduler&>(), &ReturnCheck::functor))>;
+
+		using s_2 = std::is_same<ExpectedTask
+			, decltype(std::declval<RootTask&>().on_success(
+				&ReturnCheck::functor))>;
+
+		using s_3 = std::is_same<ExpectedTask
+			, decltype(std::declval<RootTask&>().on_success(
+				std::declval<Scheduler&>(), &ReturnCheck::functor_no_task))>;
+
+		using s_4 = std::is_same<ExpectedTask
+			, decltype(std::declval<RootTask&>().on_success(
+				&ReturnCheck::functor_no_task))>;
+
+		// on_fail()
+		using e_1 = std::is_same<ExpectedTask
+			, decltype(std::declval<RootTask&>().on_fail(
+				std::declval<Scheduler&>(), &ReturnCheck::functor))>;
+
+		using e_2 = std::is_same<ExpectedTask
+			, decltype(std::declval<RootTask&>().on_fail(
+				&ReturnCheck::functor))>;
+
+		using e_3 = std::is_same<ExpectedTask
+			, decltype(std::declval<RootTask&>().on_fail(
+				std::declval<Scheduler&>(), &ReturnCheck::functor_no_task))>;
+
+		using e_4 = std::is_same<ExpectedTask
+			, decltype(std::declval<RootTask&>().on_fail(
+				&ReturnCheck::functor_no_task))>;
+
+		// on_cancel()
+		using c_1 = std::is_same<ExpectedTask
+			, decltype(std::declval<RootTask&>().on_cancel(
+				std::declval<Scheduler&>(), &ReturnCheck::functor))>;
+
+		using c_2 = std::is_same<ExpectedTask
+			, decltype(std::declval<RootTask&>().on_cancel(
+				&ReturnCheck::functor))>;
+
+		using c_3 = std::is_same<ExpectedTask
+			, decltype(std::declval<RootTask&>().on_cancel(
+				std::declval<Scheduler&>(), &ReturnCheck::functor_no_task))>;
+
+		using c_4 = std::is_same<ExpectedTask
+			, decltype(std::declval<RootTask&>().on_cancel(
+				&ReturnCheck::functor_no_task))>;
+
+		// then()
+		using t_1 = std::is_same<ExpectedTask
+			, decltype(std::declval<RootTask&>().then(
+				std::declval<Scheduler&>(), &ReturnCheck::functor))>;
+
+		using t_2 = std::is_same<ExpectedTask
+			, decltype(std::declval<RootTask&>().then(
+				&ReturnCheck::functor))>;
+
+		using t_3 = std::is_same<ExpectedTask
+			, decltype(std::declval<RootTask&>().then(
+				std::declval<Scheduler&>(), &ReturnCheck::functor_no_task))>;
+
+		using t_4 = std::is_same<ExpectedTask
+			, decltype(std::declval<RootTask&>().then(
+				&ReturnCheck::functor_no_task))>;
+
+		static constexpr bool value = std::conjunction_v<
+			  f_1, f_2, f_3, f_4
+			, s_1, s_2, s_3, s_4
+			, e_1, e_2, e_3, e_4
+			, c_1, c_2, c_3, c_4
+			, t_1, t_2, t_3, t_4
+			>;
 	};
 
 	static_assert(ReturnCheck<void, Task<void, void>>::value
@@ -53,7 +136,7 @@ namespace
 		, "Task<int, int> should be returned when using expected<int, int>& f() callback");
 
 	static_assert(ReturnCheck<Task<char, char>&, Task<char, char>>::value
-		, "Task<char, charint> should be returned when using Task<char, char>& f() callback");
+		, "Task<char, char> should be returned when using Task<char, char>& f() callback");
 
 } // namespace
 
