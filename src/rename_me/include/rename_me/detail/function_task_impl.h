@@ -246,7 +246,7 @@ namespace nn
 					&& "void f() should construct expected<void, ...> return");
 				invoker().invoke();
 				using Expected = typename Return::expected_type;
-				Storage::set_once(Expected());
+				Storage::emplace_once(Expected());
 			}
 
 			void call_impl(std::false_type/*f(...) is NOT void*/)
@@ -255,7 +255,7 @@ namespace nn
 				// move it to our storage since we have API
 				// that promises to return expected<T, ...> if function
 				// returns T&
-				Storage::set_once(std::move(invoker().invoke()));
+				Storage::emplace_once(std::move(invoker().invoke()));
 			}
 
 			Invoker& invoker()

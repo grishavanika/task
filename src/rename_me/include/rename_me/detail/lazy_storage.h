@@ -8,6 +8,15 @@
 
 namespace nn
 {
+	// LazyStorage<T> represents type that can be default-constructed
+	// even if T is not (like optional<T>).
+	// If possible, EBO used hence if is_empty<T> then is_empty<LazyStorage<T>> too.
+	// There are few limitations however: for EBO-enabled storage
+	// T will be default-constructed once and move-assigned when emplace
+	// on LazyStorage<> called.
+	// 
+	// LazyStorage<> is not copy/move-enabled for simplicity purpose
+
 	namespace detail
 	{
 
@@ -33,20 +42,10 @@ namespace nn
 		public:
 			using is_ebo = std::true_type;
 
-			explicit LazyStorageImpl()
-				: T()
-			{
-			}
-
-			LazyStorageImpl(LazyStorageImpl&&) = delete;
-			LazyStorageImpl& operator=(LazyStorageImpl&&) = delete;
-			LazyStorageImpl(const LazyStorageImpl&) = delete;
-			LazyStorageImpl& operator=(const LazyStorageImpl&) = delete;
-
 			template<typename... Args>
-			void set_once(Args&&... args)
+			void emplace_once(Args&&... args)
 			{
-				// move-assign
+				// Move assign (was default constructed)
 				get() = T(std::forward<Args>(args)...);
 			}
 
@@ -57,6 +56,7 @@ namespace nn
 
 			bool has_value() const
 			{
+				// Always has value since default constructed
 				return true;
 			}
 		};
@@ -74,11 +74,6 @@ namespace nn
 			{
 			}
 
-			LazyStorageImpl(LazyStorageImpl&&) = delete;
-			LazyStorageImpl& operator=(LazyStorageImpl&&) = delete;
-			LazyStorageImpl(const LazyStorageImpl&) = delete;
-			LazyStorageImpl& operator=(const LazyStorageImpl&) = delete;
-
 			~LazyStorageImpl()
 			{
 				if (set_)
@@ -88,7 +83,7 @@ namespace nn
 			}
 
 			template<typename... Args>
-			void set_once(Args&&... args)
+			void emplace_once(Args&&... args)
 			{
 				assert(!set_);
 				new(ptr()) T(std::forward<Args>(args)...);
@@ -117,42 +112,36 @@ namespace nn
 			bool set_;
 		};
 
-		template<typename T, typename Tag = struct _>
-		class LazyStorage : public LazyStorageImpl<T
-			, IsLazyEboEnabled<T>::value>
-		{
-			using Base = LazyStorageImpl<T
-				, IsLazyEboEnabled<T>::value>;
-			using Base::Base;
-		};
-
-		template<typename Tag>
-		class LazyStorage<void, Tag>
+		template<>
+		class LazyStorageImpl<void, !IsLazyEboEnabled<void>::value>
 		{
 		public:
 			using is_ebo = std::true_type;
+			explicit LazyStorageImpl() = default;
+			void emplace_once() { }
+			void get() { }
+			bool has_value() const { return true; }
+		};
 
-			explicit LazyStorage()
-			{
-			}
+		// Some unique Tag can be specified in case LazyStorage<>
+		// is used multiple time in single hierarchy with same T.
+		template<typename T, typename Tag = struct _>
+		class LazyStorage : private LazyStorageImpl<T, IsLazyEboEnabled<T>::value>
+		{
+			using Storage = LazyStorageImpl<T, IsLazyEboEnabled<T>::value>;
+		public:
+			explicit LazyStorage() = default;
+
+			using is_ebo = typename Storage::is_ebo;
+			using Storage::emplace_once;
+			using Storage::get;
+			using Storage::has_value;
 
 			LazyStorage(LazyStorage&&) = delete;
 			LazyStorage& operator=(LazyStorage&&) = delete;
 			LazyStorage(const LazyStorage&) = delete;
 			LazyStorage& operator=(const LazyStorage&) = delete;
-
-			void set_once()
-			{
-			}
-
-			void get()
-			{
-			}
-
-			bool has_value() const
-			{
-				return true;
-			}
 		};
+
 	} // namespace detail
 } // namespace nn
