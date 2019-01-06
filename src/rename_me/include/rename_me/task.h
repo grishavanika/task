@@ -81,7 +81,7 @@ namespace nn
 		//  3. U (some type that is not Task<> or expected<>)
 		//     then returns Task<U, void> with immediate success status.
 		template<typename F>
-		detail::FunctionTaskReturnT<F, std::tuple<const Task<T, E>&>>
+		detail::FunctionTaskReturnT<F, const Task<T, E>&>
 			on_finish(Scheduler& scheduler, F&& f);
 
 		// Executes on_finish() with this task's scheduler
@@ -289,7 +289,7 @@ namespace nn
 	auto Task<T, E>::on_finish_impl(Scheduler& scheduler, F&& f, CallPredicate p)
 	{
 		using Function = detail::remove_cvref_t<F>;
-		using FunctionTaskReturn = detail::FunctionTaskReturn<F, std::tuple<const Task&>>;
+		using FunctionTaskReturn = detail::FunctionTaskReturn<F, const Task&>;
 		using ReturnTask = typename FunctionTaskReturn::type;
 
 		struct NN_EBO_CLASS Invoker
@@ -334,7 +334,7 @@ namespace nn
 
 	template<typename T, typename E>
 	template<typename F>
-	detail::FunctionTaskReturnT<F, std::tuple<const Task<T, E>&>>
+	detail::FunctionTaskReturnT<F, const Task<T, E>&>
 		Task<T, E>::on_finish(Scheduler& scheduler, F&& f)
 	{
 		return on_finish_impl(scheduler, std::forward<F>(f)

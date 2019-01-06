@@ -6,8 +6,6 @@
 #include <rename_me/detail/lazy_storage.h>
 
 #include <functional>
-#include <tuple>
-#include <variant>
 #include <cassert>
 #include <cstdint>
 
@@ -112,16 +110,30 @@ namespace nn
 			}
 		};
 
-		template<typename F, typename ArgsTuple
-			, typename R = remove_cvref_t<decltype(
-				std::apply(std::declval<F>(), std::declval<ArgsTuple>()))>>
-		struct FunctionTaskReturn : FunctionTaskReturnImpl<R>
+		template<bool, typename F, typename... Args>
+		struct FunctionTaskReturnEnable
+		{
+			static constexpr bool is_valid = false;
+		};
+
+		template<typename F, typename... Args>
+		struct FunctionTaskReturnEnable<true, F, Args...>
+			: FunctionTaskReturnImpl<remove_cvref_t<
+				std::invoke_result_t<F, Args...>>>
+		{
+			static constexpr bool is_valid = true;
+		};
+
+		template<typename F, typename... Args>
+		struct FunctionTaskReturn
+			: FunctionTaskReturnEnable<std::is_invocable_v<F, Args...>
+				, F, Args...>
 		{
 		};
 
 		// Help MSVC to out-of-class definition of the on_finish() function
-		template<typename F, typename ArgsTuple>
-		using FunctionTaskReturnT = typename FunctionTaskReturn<F, ArgsTuple>::type;
+		template<typename F, typename... Args>
+		using FunctionTaskReturnT = typename FunctionTaskReturn<F, Args...>::type;
 		
 		// #TODO: rename to EboStorage and move to, for example, lazy_storage.h
 		template<bool IsEbo, typename F>

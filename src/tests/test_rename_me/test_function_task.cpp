@@ -48,7 +48,7 @@ namespace
 	// Check minimum possible size of internal FunctionTask
 	struct EBOFunction { void operator()() const { } };
 	using EBOArgs = std::tuple<>;
-	using EBOFunctionTaskReturn = detail::FunctionTaskReturn<EBOFunction, EBOArgs>;
+	using EBOFunctionTaskReturn = detail::FunctionTaskReturn<EBOFunction>;
 	struct NN_EBO_CLASS EBOInvoker
 		: private detail::EBOFunctor<EBOFunction>
 		, private EBOArgs

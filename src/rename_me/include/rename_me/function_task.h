@@ -12,13 +12,12 @@ namespace nn
 	// Looks like it depends on std::expected: if it supports references - they can 
 	// be added easily.
 	template<typename F, typename... Args>
-	typename detail::FunctionTaskReturn<F
-		, std::tuple<detail::remove_cvref_t<Args>...>>::type
-			make_task(Scheduler& scheduler, F&& f, Args&&... args)
+	detail::FunctionTaskReturnT<F, detail::remove_cvref_t<Args>...>
+		make_task(Scheduler& scheduler, F&& f, Args&&... args)
 	{
 		using Function = detail::remove_cvref_t<F>;
 		using ArgsTuple = std::tuple<detail::remove_cvref_t<Args>...>;
-		using FunctionTaskReturn = detail::FunctionTaskReturn<F, ArgsTuple>;
+		using FunctionTaskReturn = detail::FunctionTaskReturn<F, detail::remove_cvref_t<Args>...>;
 		using ReturnTask = typename FunctionTaskReturn::type;
 
 		struct NN_EBO_CLASS Invoker
