@@ -51,7 +51,7 @@ int main()
 }
 ```
 
-See [simple_then example](task/src/examples/example_simple_then/main.cpp).
+See [simple_then example](task/blob/master/src/examples/example_simple_then/main.cpp).
 
 # TODO:
 
