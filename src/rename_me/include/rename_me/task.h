@@ -192,7 +192,7 @@ namespace nn
 		using FullTask = detail::InternalCustomTask<T, E, CustomTask>;
 		auto full_task = detail::RefCountPtr<FullTask>::make(
 			scheduler, std::forward<Args>(args)...);
-		scheduler.add(full_task.template to_base<detail::TaskBase>());
+		scheduler.post(full_task.template to_base<detail::TaskBase>());
 		return Task(full_task.template to_base<typename InternalTask::type>());
 	}
 

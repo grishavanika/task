@@ -36,6 +36,8 @@ namespace nn
 		struct NN_EBO_CLASS EboStorage :
 			EboStorageImpl<IsEboEnabled<T>::value, T>
 		{
+			static_assert(std::is_same_v<remove_cvref_t<T>, T>
+				, "T should not be cv-reference");
 			using Base = EboStorageImpl<IsEboEnabled<T>::value, T>;
 			using Base::Base;
 		};

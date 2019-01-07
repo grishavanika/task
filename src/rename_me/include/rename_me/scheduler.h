@@ -25,7 +25,7 @@ namespace nn
 		template<typename T, typename E>
 		friend class Task;
 
-		void add(detail::ErasedTask task);
+		void post(detail::ErasedTask task);
 
 		std::vector<detail::ErasedTask> get_tasks();
 		void add_tasks(std::vector<detail::ErasedTask> tasks);

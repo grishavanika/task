@@ -126,8 +126,6 @@ namespace nn
 
 		template<typename F, typename... Args>
 		struct FunctionTaskReturn
-			// #TODO: see if F needs to be remove_cvref_t<F>
-			// (since F is F&& - forwarding reference: see FunctionTaskReturn usage)
 			: FunctionTaskReturnEnable<std::is_invocable_v<F, Args...>
 				, F, Args...>
 		{

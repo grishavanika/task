@@ -18,7 +18,7 @@ namespace nn
 	{
 	}
 
-	void Scheduler::add(detail::ErasedTask task)
+	void Scheduler::post(detail::ErasedTask task)
 	{
 		assert(task);
 		Lock _(guard_);
