@@ -64,6 +64,7 @@ def cmake_win_generator_args(config):
 
 	if config.vcpkg_path:
 		args += ['-DCMAKE_TOOLCHAIN_FILE={}'.format(config.vcpkg_path)]
+		#args += ['-DVCPKG_TARGET_TRIPLET={}-windows-static'.format(enum_str(config.platform))]
 
 	return args
 
