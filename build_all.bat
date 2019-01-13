@@ -4,10 +4,11 @@
 set path=C:\Programs\Python\Python36-64\;%path%;
 set path=%path%;C:\Programs\mingw_gcc_7.3.0\bin;
 set path=%path%;C:\Programs\CMake\bin
+set vcpkg_cmake=C:/libs/vcpkg/scripts/buildsystems/vcpkg.cmake
 
 :: MSVC
 cd tools
-python generate_project.py --compiler=cl --platform=x64
+python generate_project.py --compiler=cl --platform=x64 --vcpkg=%vcpkg_cmake%
 cd ../build_cl_x64
 cmake --build . --config Release
 if errorlevel 1 goto exit

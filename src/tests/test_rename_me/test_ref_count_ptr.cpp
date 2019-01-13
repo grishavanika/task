@@ -48,7 +48,8 @@ TEST(RefCountPtr, Destroys_Object_When_Out_Of_Scope_After_Creation)
 	int dead_count = 0;
 	{
 		Ptr p = Ptr::make(dead_count);
-		ASSERT_NE(nullptr, p.get());
+		// Issues with gtest 1.8.*
+		ASSERT_NE(static_cast<RefCounted*>(nullptr), p.get());
 		ASSERT_EQ(1, p->ref_);
 	}
 	ASSERT_EQ(1, dead_count);
@@ -113,7 +114,7 @@ TEST(RefCountPtr, Copy_Ctor_Increases_Ref_Count_For_Both_Ptrs)
 		ASSERT_EQ(1, ptr->ref_);
 		const RefCounted* raw = ptr.get();
 		Ptr copy(ptr);
-		ASSERT_NE(nullptr, ptr.get());
+		ASSERT_NE(static_cast<RefCounted*>(nullptr), ptr.get());
 		ASSERT_EQ(copy.get(), ptr.get());
 		ASSERT_EQ(raw, copy.get());
 		ASSERT_EQ(2, raw->ref_);

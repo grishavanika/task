@@ -5,8 +5,8 @@
 
 #include "test_tools.h"
 
-using ::testing::ElementsAre;
-using ::testing::UnorderedElementsAre;
+using ::testing::ElementsAreArray;
+using ::testing::UnorderedElementsAreArray;
 
 using namespace nn;
 
@@ -180,7 +180,7 @@ TEST(OnFinish, Can_Be_Chained)
 		(void)sch2.poll();
 	}
 
-	ASSERT_THAT(order, ElementsAre(1, 2, 3, 4));
+	ASSERT_THAT(order, ElementsAreArray({1, 2, 3, 4}));
 
 	ASSERT_EQ(&sch2, &task3.scheduler());
 	ASSERT_TRUE(task1.is_successful());
@@ -217,7 +217,7 @@ TEST(OnFinish, Can_Be_Called_Multiple_Times_On_Same_Task)
 		(void)sch.poll();
 	}
 
-	ASSERT_THAT(calls, UnorderedElementsAre(1, 2, 3));
+	ASSERT_THAT(calls, UnorderedElementsAreArray({1, 2, 3}));
 }
 
 TEST(OnFinish, On_Fail_Is_Failed_And_Canceled_When_Task_Finish_With_Success)

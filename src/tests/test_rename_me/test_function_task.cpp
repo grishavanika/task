@@ -206,7 +206,7 @@ TEST(FunctionTask, Move_Only_Return)
 	ASSERT_EQ(std::size_t(1), sch.poll());
 	ASSERT_TRUE(task.is_successful());
 	ASSERT_TRUE(task.get().has_value());
-	ASSERT_NE(nullptr, task.get().value());
+	ASSERT_NE(std::unique_ptr<int>(), task.get().value());
 	ASSERT_EQ(11, *task.get_once().value());
 }
 
@@ -256,7 +256,7 @@ TEST(FunctionTask, Forwards_Args_To_The_Functor)
 	ASSERT_EQ(std::size_t(1), sch.poll());
 	ASSERT_TRUE(task.is_successful());
 	ASSERT_TRUE(task.get().has_value());
-	ASSERT_NE(nullptr, task.get().value());
+	ASSERT_NE(std::unique_ptr<int>(), task.get().value());
 	ASSERT_EQ(42, *task.get().value());
 }
 
