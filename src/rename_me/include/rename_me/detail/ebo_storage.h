@@ -18,6 +18,7 @@ namespace nn
 				: T(std::move(f)) { }
 
 			T& get() { return *this; }
+			const T& get() const { return *this; }
 		};
 
 		template<typename T>
@@ -27,6 +28,7 @@ namespace nn
 				: value_(std::move(v)) { }
 
 			T& get() { return value_; }
+			const T& get() const { return value_; }
 
 		private:
 			T value_;

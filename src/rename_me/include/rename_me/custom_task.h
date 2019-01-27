@@ -29,6 +29,13 @@ namespace nn
 		// To be thread-safe, get() value needs to be set before
 		// finish status returned from tick().
 		expected<T, E>& get();
+		// Optional.
+		// If initial_status() is not InProgress,
+		// task is not posted to scheduler and is
+		// immediately finished. In this case tick() will not
+		// be invoked.
+		// Can be useful for creating no-op (ready) tasks.
+		Status initial_status() const;
 	};
 #endif
 
@@ -64,6 +71,25 @@ namespace nn
 	template<typename CustomTask, typename T, typename E>
 	struct IsCustomTask<CustomTask, T, E
 		, CustomTaskInterface<CustomTask, T, E>>
+		: std::true_type
+	{
+	};
+
+	template<typename CustomTask>
+	using InitialStatusInterface = std::void_t<
+			typename detail::VoidifySame<
+				Status, decltype(std::declval<const CustomTask&>()
+					.initial_status())>::type>;
+
+	template<typename CustomTask, typename = void>
+	struct HasInitialStatus
+		: std::false_type
+	{
+	};
+
+	template<typename CustomTask>
+	struct HasInitialStatus<CustomTask
+		, InitialStatusInterface<CustomTask>>
 		: std::true_type
 	{
 	};

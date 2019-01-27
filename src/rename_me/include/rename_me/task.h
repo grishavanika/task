@@ -61,7 +61,7 @@ namespace nn
 		expected<T, E>& get() const &;
 		expected<T, E>& get() &;
 		expected<T, E> get() &&;
-		expected<T, E> get_once();
+		expected<T, E> get_once() const;
 
 		// Thread-safe
 		void try_cancel();
@@ -192,7 +192,10 @@ namespace nn
 		using FullTask = detail::InternalCustomTask<T, E, CustomTask>;
 		auto full_task = detail::RefCountPtr<FullTask>::make(
 			scheduler, std::forward<Args>(args)...);
-		scheduler.post(full_task.template to_base<detail::TaskBase>());
+		if (full_task->status() == Status::InProgress)
+		{
+			scheduler.post(full_task.template to_base<detail::TaskBase>());
+		}
 		return Task(full_task.template to_base<typename InternalTask::type>());
 	}
 
@@ -302,7 +305,7 @@ namespace nn
 	}
 
 	template<typename T, typename E>
-	expected<T, E> Task<T, E>::get_once()
+	expected<T, E> Task<T, E>::get_once() const
 	{
 		assert(task_);
 		return std::move(task_->get_data());

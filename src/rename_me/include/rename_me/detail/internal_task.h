@@ -78,6 +78,9 @@ namespace nn
 			virtual Status status() const override;
 			virtual expected<T, E>& get_data() override;
 
+			void set_custom_status(std::true_type);
+			void set_custom_status(std::false_type);
+
 		private:
 			Scheduler& scheduler_;
 			CustomTask task_;
@@ -99,6 +102,7 @@ namespace nn
 			: scheduler_(scheduler)
 			, task_(std::forward<Args>(args)...)
 		{
+			set_custom_status(HasInitialStatus<CustomTask>());
 		}
 
 		template<typename T, typename E, typename CustomTask>
@@ -141,6 +145,18 @@ namespace nn
 		{
 			assert(Base::last_run_ != Status::InProgress);
 			return task().get();
+		}
+
+		template<typename T, typename E, typename CustomTask>
+		void InternalCustomTask<T, E, CustomTask>::set_custom_status(std::true_type)
+		{
+			Base::last_run_ = task().initial_status();
+		}
+
+		template<typename T, typename E, typename CustomTask>
+		void InternalCustomTask<T, E, CustomTask>::set_custom_status(std::false_type)
+		{
+			assert(status() == Status::InProgress);
 		}
 
 	} // namespace detail
