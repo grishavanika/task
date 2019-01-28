@@ -81,6 +81,9 @@ namespace nn
 			void set_custom_status(std::true_type);
 			void set_custom_status(std::false_type);
 
+#if !defined(NDEBUG)
+			void validate_data_state(Status status);
+#endif
 		private:
 			Scheduler& scheduler_;
 			CustomTask task_;
@@ -123,6 +126,9 @@ namespace nn
 			assert(Base::last_run_ == Status::InProgress);
 			const bool cancel_requested = Base::try_cancel_;
 			const Status status = task().tick(cancel_requested);
+#if !defined(NDEBUG)
+			validate_data_state(status);
+#endif
 			Base::try_cancel_ = false;
 			Base::last_run_ = status;
 			return status;
@@ -150,14 +156,41 @@ namespace nn
 		template<typename T, typename E, typename CustomTask>
 		void InternalCustomTask<T, E, CustomTask>::set_custom_status(std::true_type)
 		{
+			assert(Base::last_run_ == Status::InProgress);
 			Base::last_run_ = task().initial_status();
 		}
 
 		template<typename T, typename E, typename CustomTask>
 		void InternalCustomTask<T, E, CustomTask>::set_custom_status(std::false_type)
 		{
-			assert(status() == Status::InProgress);
+			assert(Base::last_run_ == Status::InProgress);
 		}
+
+#if !defined(NDEBUG)
+		template<typename T, typename E, typename CustomTask>
+		void InternalCustomTask<T, E, CustomTask>::validate_data_state(Status status)
+		{
+			switch (status)
+			{
+			case Status::Canceled:
+				// Allowed to leave expected<T, E> in unspecified state,
+				// but expected<> should be valid/constructed object
+				assert(task().get().has_value()
+					|| !task().get().has_value());
+				break;
+			case Status::InProgress:
+				break;
+			case Status::Failed:
+				// Error should be set
+				assert(!task().get().has_value());
+				break;
+			case Status::Successful:
+				// Value should be set
+				assert(task().get().has_value());
+				break;
+			}
+		}
+#endif
 
 	} // namespace detail
 } // namespace nn

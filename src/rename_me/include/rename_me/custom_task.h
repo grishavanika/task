@@ -24,10 +24,13 @@ namespace nn
 	{
 		// Invoked on Scheduler's thread.
 		Status tick(bool cancel_requested);
-		// Implementation needs to guaranty that returned value
-		// is "some" valid value once tick() returns finished status.
 		// To be thread-safe, get() value needs to be set before
 		// finish status returned from tick().
+		// 
+		// It's expected for get() to return expected with
+		// (1) has_value() == true when last tick was Successful
+		// (2) has_value() == false (e.g, error is valid) when Failed
+		// (3) unspecified state when Canceled
 		expected<T, E>& get();
 		// Optional.
 		// If initial_status() is not InProgress,
