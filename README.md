@@ -66,7 +66,32 @@ See [simple_then example](task/blob/master/src/examples/example_simple_then/main
 8. Polish memory layout for internal tasks.
 9. Default (thread-local ?) Scheduler's ?
 10. Compare to continuable: https://github.com/Naios/continuable
-11.
+11. Attach `Info` to the task.
+    This allows to have:
+      - NoInfo (in Retail, for example)
+          - configurable with NN_DISABLE_INFO
+      - DebugInfo (were started and so on)
+      - ExecutionInfo (parent/child relationships, see transwrap library)
+          - configurable with NN_ENABLE_TASKS_GRAPH
+      - CustomInfo - allows to attach custom information by the client
+
+```
+struct NoInfo {};
+struct DebugInfo : NoInfo { const char* const file, unsigned line; /**/ };
+struct ExecutionInfo : DebugInfo { TaskHandle parent; /**/ };
+
+#if (NN_DISABLE_INFO)
+  using TaskInfo = NoInfo;
+#else
+  #if (NN_ENABLE_TASKS_GRAPH)
+    using TaskInfo = ExecutionInfo;
+  #else
+    using TaskInfo = DebugInfo;
+  #endif
+#endif
+
+struct CustomInfo : TaskInfo { int cookie; /**/ };
+```
 
 # Compilers
 
