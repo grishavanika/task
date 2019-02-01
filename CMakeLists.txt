@@ -21,6 +21,11 @@ if (clang_on_msvc)
 	# add_compile_options(-fsanitize=address)
 endif ()
 
+if (gcc)
+	message("GCC: -Wno-unused-function")
+	add_compile_options(-Wno-unused-function)	
+endif ()
+
 add_subdirectory(third_party)
 add_subdirectory(src)
 

@@ -39,6 +39,11 @@ namespace nn
 				return RefCountPtr(new T(std::forward<Args>(args)...));
 			}
 
+			explicit RefCountPtr() NN_NOEXCEPT(true)
+				: ptr_(nullptr)
+			{
+			}
+
 			RefCountPtr(RefCountPtr&& rhs) NN_NOEXCEPT(true)
 				: ptr_(rhs.ptr_)
 			{

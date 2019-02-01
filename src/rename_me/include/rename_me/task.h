@@ -39,6 +39,7 @@ namespace nn
 		static
 			typename std::enable_if<IsCustomTask<CustomTask, T, E>::value, Task>::type
 				make(Scheduler& scheduler, Args&&... args);
+		explicit Task();
 		~Task();
 		Task(Task&& rhs) noexcept;
 		Task& operator=(Task&& rhs) noexcept;
@@ -146,6 +147,8 @@ namespace nn
 			-> decltype(on_cancel(
 				std::declval<Scheduler&>(), std::forward<F>(f)));
 
+		bool is_valid() const;
+
 	private:
 		explicit Task(InternalTask task);
 
@@ -197,6 +200,18 @@ namespace nn
 			scheduler.post(full_task.template to_base<detail::TaskBase>());
 		}
 		return Task(full_task.template to_base<typename InternalTask::type>());
+	}
+
+	template<typename T, typename E>
+	/*explicit*/ Task<T, E>::Task()
+		: task_()
+	{
+	}
+
+	template<typename T, typename E>
+	bool Task<T, E>::is_valid() const
+	{
+		return task_.operator bool();
 	}
 
 	template<typename T, typename E>

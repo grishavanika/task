@@ -169,7 +169,7 @@ namespace detail
 			});
 		}
 
-		nn::Task<void, int> listen(int queue_len = 1)
+		nn::Task<void, int> listen(int queue_len)
 		{
 			return nn::make_task(*scheduler_, [=]()
 			{
@@ -296,6 +296,7 @@ namespace detail
 				return nn::make_task<int>(nn::success, *scheduler_);
 			}
 			const int sent = ::send(socket_, data.data(), length, 0);
+			(void)sent;
 			assert(sent == length);
 			// #TODO: async
 			return nn::make_task<int>(nn::success, *scheduler_);
@@ -379,6 +380,62 @@ namespace
 
 } // namespace
 
+struct MockServer::AcceptForeverTask
+{
+	explicit AcceptForeverTask(MockServer& server)
+		: server_(server)
+	{
+	}
+
+	nn::Status tick(bool cancel_requested)
+	{
+		if (cancel_requested)
+		{
+			if (current_.is_valid())
+			{
+				current_.try_cancel();
+				return current_.is_finished()
+					? nn::Status::Canceled : nn::Status::InProgress;
+			}
+			return nn::Status::Canceled;
+		}
+		if (current_.is_valid())
+		{
+			switch (current_.status())
+			{
+			case nn::Status::Canceled  : return nn::Status::Canceled;
+			case nn::Status::InProgress: return nn::Status::InProgress;
+			case nn::Status::Failed:
+			{
+				// Set error ?
+				// But I can handle N client already
+				return nn::Status::Failed;
+			}
+			case nn::Status::Successful:
+			{
+				assert(data_.has_value());
+				++data_.value();
+				server_.on_new_connection(std::move(current_.get().value()));
+				break;
+			}
+			}
+		}
+
+		current_ = server_.socket_->accept();
+		return nn::Status::InProgress;
+	}
+
+	nn::expected<unsigned, int>& get()
+	{
+		return data_;
+	}
+
+private:
+	MockServer& server_;
+	nn::expected<unsigned, int> data_ = 0;
+	nn::Task<::detail::TcpSocket, int> current_;
+};
+
 SocketsInitializer::SocketsInitializer()
 {
 #if defined(_WIN32)
@@ -398,48 +455,41 @@ SocketsInitializer::~SocketsInitializer()
 /*explicit*/ MockServer::MockServer(
 	nn::Scheduler& scheduler
 	, IRequestListener& listener
-	, std::string address /*= "127.0.0.1"*/
-	, std::uint16_t port /*= 80*/)
+	, int backlog /*= 1*/)
 	: scheduler_(scheduler)
 	, listener_(listener)
 	, socket_(std::make_unique<detail::TcpSocket>(scheduler_))
-	, address_(std::move(address))
-	, port_(port)
+	, backlog_(backlog)
 {
 }
 
-nn::Task<void, int> MockServer::handle_one_connection()
+void MockServer::on_new_connection(::detail::TcpSocket&& client)
 {
-	auto start = [=]() -> nn::Task<void, int>
+	auto receive = client.receive_once();
+	(void)nn::forward_error(std::move(receive)
+		, [this, client = std::move(client)]
+			(std::string&& payload) mutable
 	{
-		return nn::forward_error(
-			socket_->bind(address_, port_)
-			, [=] { return socket_->listen(); });
-	};
-	auto accept = [=]() -> nn::Task<::detail::TcpSocket, int>
-	{
-		return nn::forward_error(start()
-			, [=] { return socket_->accept(); });
-	};
-	
-	return nn::forward_error(accept()
-		, [&](::detail::TcpSocket&& client)
-	{
-		auto receive = client.receive_once();
-		return nn::forward_error(std::move(receive)
-			, [this, client = std::move(client)]
-				(std::string&& payload) mutable
+		auto request = ParseGetRequest(std::move(payload));
+		if (request.url.empty())
 		{
-			auto request = ParseGetRequest(std::move(payload));
-			if (request.url.empty())
-			{
-				// #TODO: nice error
-				return nn::make_task(nn::error, scheduler_, 1);
-			}
-			auto response = MakeResponse(listener_.on_get_request(std::move(request.url)));
-			return std::move(client).send_once(std::move(response));
-		});
+			// #TODO: nice error
+			return nn::make_task(nn::error, scheduler_, 1);
+		}
+		auto response = MakeResponse(listener_.on_get_request(std::move(request.url)));
+		return std::move(client).send_once(std::move(response));
 	});
+}
+
+nn::Task<unsigned, int> MockServer::start(const std::string& address, std::uint16_t port)
+{
+	auto start = [this, start_task = socket_->bind(address, port)]() mutable
+	{
+		return nn::forward_error(std::move(start_task)
+			, [this] { return socket_->listen(backlog_); });
+	};
+	return nn::forward_error(start()
+		, [this] { return nn::Task<unsigned, int>::make<AcceptForeverTask>(scheduler_, *this); });
 }
 
 MockServer::~MockServer()

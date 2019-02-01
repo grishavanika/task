@@ -6,14 +6,14 @@ nn::curl::detail::CurlTask::CurlTask(CurlGet&& curl_get)
 	, multi_handle_(nullptr)
 	, request_(nullptr)
 {
-	if (!setup(curl_get.url.c_str()))
+	if (!setup(curl_get))
 	{
 		data_ = Error(CurlError(true));
 		cleanup();
 	}
 }
 
-bool nn::curl::detail::CurlTask::setup(const char* url)
+bool nn::curl::detail::CurlTask::setup(const CurlGet& options)
 {
 	multi_handle_ = curl_multi_init();
 	if (!multi_handle_)
@@ -27,9 +27,10 @@ bool nn::curl::detail::CurlTask::setup(const char* url)
 	}
 
 	bool ok = true;
-	ok &= (curl_easy_setopt(request_, CURLOPT_URL, url) == CURLE_OK);
+	const long verbose = options.verbose ? 1L : 0L;
+	ok &= (curl_easy_setopt(request_, CURLOPT_URL, options.url.c_str()) == CURLE_OK);
 	ok &= (curl_easy_setopt(request_, CURLOPT_FOLLOWLOCATION, 1L) == CURLE_OK);
-	ok &= (curl_easy_setopt(request_, CURLOPT_VERBOSE, 1L) == CURLE_OK);
+	ok &= (curl_easy_setopt(request_, CURLOPT_VERBOSE, verbose) == CURLE_OK);
 	ok &= (curl_easy_setopt(request_, CURLOPT_WRITEDATA, this) == CURLE_OK);
 	ok &= (curl_easy_setopt(request_, CURLOPT_WRITEFUNCTION, &CurlTask::WriteCallback) == CURLE_OK);
 

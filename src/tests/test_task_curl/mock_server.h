@@ -43,16 +43,18 @@ class MockServer
 public:
 	explicit MockServer(nn::Scheduler& scheduler
 		, IRequestListener& listener
-		, std::string address
-		, std::uint16_t port);
+		, int backlog = 1);
 	~MockServer();
 
-	nn::Task<void, int> handle_one_connection();
+	nn::Task<unsigned, int> start(const std::string& address, std::uint16_t port);
+
+private:
+	void on_new_connection(::detail::TcpSocket&& client);
+	struct AcceptForeverTask;
 
 private:
 	nn::Scheduler& scheduler_;
 	IRequestListener& listener_;
 	std::unique_ptr<::detail::TcpSocket> socket_;
-	std::string address_;
-	std::uint16_t port_;
+	int backlog_;
 };

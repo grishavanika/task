@@ -18,10 +18,18 @@ namespace nn
 		struct CurlGet
 		{
 			std::string url;
+			bool verbose = false;
 
-			explicit CurlGet(std::string u)
-				: url(std::move(u))
+			CurlGet& set_url(std::string str)
 			{
+				url = std::move(str);
+				return *this;
+			}
+
+			CurlGet& set_verbose(bool enable)
+			{
+				verbose = enable;
+				return *this;
 			}
 		};
 
@@ -44,7 +52,7 @@ namespace nn
 				explicit CurlTask(CurlGet&& curl_get);
 				~CurlTask();
 
-				bool setup(const char* url);
+				bool setup(const CurlGet& options);
 				void cleanup();
 
 				Status tick(bool cancel_requested);
