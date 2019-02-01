@@ -1,4 +1,6 @@
 #include <gtest/gtest.h>
+#include <rename_me/task.h>
+#include <rename_me/noop_task.h>
 #include <rename_me/function_task.h>
 #include <rename_me/detail/config.h>
 
@@ -58,10 +60,16 @@ namespace
 		bool wait() const { return false; }
 	};
 	using EBOFunctionTask = detail::FunctionTask<EBOFunctionTaskReturn, EBOInvoker>;
-	static_assert(sizeof(EBOFunctionTask) == sizeof(bool)
+	// bool invoked_ in detail::FunctionTask<> +
+	// bool ok_ in expected<void, void> + 
+	// bool set_ in LazyStorage<expected<void, void>>
+	// #TODO: can be optimized ?
+	enum { value = sizeof(EBOFunctionTask) };
+	static_assert(value == 3 * sizeof(bool)
 		, "detail::FunctionTask<> uses only bool as data member. "
 		"Everything else should be EBO-enabled");
 
+#if (0)
 	// Set/check minimum possible size of internal CustomTask.
 	// May change in the future
 	struct EBOTask : expected<void, void>
@@ -69,9 +77,21 @@ namespace
 		Status tick(bool) { return Status::Successful; }
 		expected<void, void>& get() { return *this; }
 	};
+	// false because expected<void, void> contains bool ok_
 	static_assert(std::is_empty<EBOTask>::value, "");
 	static_assert(sizeof(detail::InternalCustomTask<void, void, EBOTask>)
 		== 4 * sizeof(void*), "");
+#else
+	// Set/check minimum possible size of internal CustomTask.
+	// May change in the future
+	struct EBOTask : expected<void, void>
+	{
+		Status tick(bool) { return Status::Successful; }
+		expected<void, void>& get() { return *this; }
+	};
+	static_assert(sizeof(detail::InternalCustomTask<void, void, EBOTask>)
+		== 4 * sizeof(void*), "");
+#endif
 
 	// Test-controlled task
 	struct TestTask
@@ -491,5 +511,89 @@ TEST(FunctionTask, Can_Be_Invoked_From_Move_Only_Functor)
 		Task<int> task = make_task(sch, Functor(), 10);
 		(void)sch.poll();
 		ASSERT_EQ(10, task.get().value());
+	}
+}
+
+TEST(FunctionTask, Invoke_For_Function_That_Returns_Standard_Type)
+{
+	using namespace detail;
+
+	Scheduler sch;
+	auto f = [](int v) { return v; };
+	Task<int, void> task = FunctionTaskReturn<decltype(f), int>::invoke(sch, f, 10);
+	ASSERT_TRUE(task.is_successful());
+	ASSERT_EQ(10, task.get_once().value());
+}
+
+TEST(FunctionTask, Invoke_For_Function_That_Returns_Void)
+{
+	using namespace detail;
+
+	Scheduler sch;
+	bool invoked = false;
+	auto f = [&](int) { invoked = true; };
+	Task<void, void> task = FunctionTaskReturn<decltype(f), int>::invoke(sch, f, 10);
+	ASSERT_TRUE(invoked);
+	ASSERT_TRUE(task.is_successful());
+	ASSERT_TRUE(task.get_once().has_value());
+}
+
+TEST(FunctionTask, Invoke_For_Function_That_Returns_Expected)
+{
+	using namespace detail;
+
+	Scheduler sch;
+	auto f = [](int v)
+	{
+		using Return = expected<int, int>;
+		using Unexpected = ::nn::unexpected<int>;
+		if (v >= 0)
+		{
+			return Return(v);
+		}
+		return Return(Unexpected(v * -1));
+	};
+
+	{
+		Task<int, int> task = FunctionTaskReturn<decltype(f), int>::invoke(sch, f, 10);
+		ASSERT_TRUE(task.is_successful());
+		ASSERT_TRUE(task.get_once().has_value());
+		ASSERT_EQ(10, task.get_once().value());
+	}
+
+	{
+		Task<int, int> task = FunctionTaskReturn<decltype(f), int>::invoke(sch, f, -10);
+		ASSERT_FALSE(task.is_successful());
+		ASSERT_FALSE(task.get_once().has_value());
+		ASSERT_EQ(10, task.get().error());
+	}
+}
+
+TEST(FunctionTask, Invoke_For_Function_That_Returns_Task)
+{
+	using namespace detail;
+
+	Scheduler sch;
+	auto f = [&](int v) -> Task<int, int>
+	{
+		if (v >= 0)
+		{
+			return make_task<int, int>(success, sch, v);
+		}
+		return make_task<int, int>(error, sch, v * -1);
+	};
+
+	{
+		Task<int, int> task = FunctionTaskReturn<decltype(f), int>::invoke(sch, f, 10);
+		ASSERT_TRUE(task.is_successful());
+		ASSERT_TRUE(task.get_once().has_value());
+		ASSERT_EQ(10, task.get_once().value());
+	}
+
+	{
+		Task<int, int> task = FunctionTaskReturn<decltype(f), int>::invoke(sch, f, -10);
+		ASSERT_FALSE(task.is_successful());
+		ASSERT_FALSE(task.get_once().has_value());
+		ASSERT_EQ(10, task.get().error());
 	}
 }

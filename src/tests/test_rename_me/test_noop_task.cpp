@@ -103,3 +103,13 @@ TEST(Noop, Status_Is_Reflected_From_Expected)
 		ASSERT_EQ(1, task.get().error());
 	}
 }
+
+TEST(Noop, Expexted_With_Void_Error)
+{
+	Scheduler sch;
+	Task<void, void> task = make_task(error, sch);
+	ASSERT_TRUE(task.is_finished());
+	ASSERT_TRUE(task.is_failed());
+	ASSERT_FALSE(task.get().has_value());
+}
+

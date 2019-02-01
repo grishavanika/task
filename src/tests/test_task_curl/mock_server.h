@@ -3,6 +3,8 @@
 #include <memory>
 #include <atomic>
 
+#include <cstdint>
+
 namespace nn
 {
 	class Scheduler;
@@ -39,22 +41,18 @@ struct SocketsInitializer
 class MockServer
 {
 public:
-	explicit MockServer(nn::Scheduler& scheduler, IRequestListener& listener);
+	explicit MockServer(nn::Scheduler& scheduler
+		, IRequestListener& listener
+		, std::string address
+		, std::uint16_t port);
 	~MockServer();
 
-	// Blocking. Can be called only once
-	void handle_one_connection();
-
-	bool had_connection() const;
-	bool waiting_connection() const;
-
-private:
-	nn::Task<void, int> start(const std::string& address, std::uint16_t port);
+	nn::Task<void, int> handle_one_connection();
 
 private:
 	nn::Scheduler& scheduler_;
 	IRequestListener& listener_;
-	std::unique_ptr<detail::TcpSocket> socket_;
-	std::atomic_bool did_accept_;
-	std::atomic_bool waiting_accept_;
+	std::unique_ptr<::detail::TcpSocket> socket_;
+	std::string address_;
+	std::uint16_t port_;
 };

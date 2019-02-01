@@ -4,6 +4,7 @@
 #include <rename_me/detail/config.h>
 #include <rename_me/detail/cpp_20.h>
 #include <rename_me/detail/lazy_storage.h>
+#include <rename_me/detail/noop_task_base.h>
 
 #include <functional>
 #include <cassert>
@@ -12,6 +13,8 @@
 namespace nn
 {
 	
+	class Scheduler;
+
 	template<typename T, typename E>
 	class Task;
 
@@ -40,6 +43,13 @@ namespace nn
 			{
 				return data.get();
 			}
+
+			template<typename F, typename... Args>
+			static Task<R, void> invoke(Scheduler& scheduler, F&& f, Args&&... args)
+			{
+				return Task<R, void>::template make<detail::NoopTask<R, void>>(scheduler
+					, expected_type(std::forward<F>(f)(std::forward<Args>(args)...)));
+			}
 		};
 
 		template<>
@@ -61,6 +71,20 @@ namespace nn
 			{
 				return data.get();
 			}
+
+			template<typename X, typename F, typename... Args>
+			static Task<X, X> invoke_incomplete(Scheduler& scheduler, F&& f, Args&&... args)
+			{
+				(void)std::forward<F>(f)(std::forward<Args>(args)...);
+				return Task<X, X>::template make<detail::NoopTask<X, X>>(scheduler, expected_type());
+			}
+
+			template<typename F, typename... Args>
+			static auto invoke(Scheduler& scheduler, F&& f, Args&&... args)
+			{
+				// Delay incomplete Task<void, void> instantiation
+				return invoke_incomplete<void>(scheduler, std::forward<F>(f), std::forward<Args>(args)...);
+			}
 		};
 
 		template<typename T, typename E>
@@ -81,6 +105,13 @@ namespace nn
 			static expected_type& get(storage& data)
 			{
 				return data.get();
+			}
+
+			template<typename F, typename... Args>
+			static Task<T, E> invoke(Scheduler& scheduler, F&& f, Args&&... args)
+			{
+				return Task<T, E>::template make<detail::NoopTask<T, E>>(scheduler
+					, std::forward<F>(f)(std::forward<Args>(args)...));
 			}
 		};
 
@@ -107,6 +138,13 @@ namespace nn
 			static expected_type& get(storage& data)
 			{
 				return data.get().get();
+			}
+
+			template<typename F, typename... Args>
+			static Task<T, E> invoke(Scheduler& scheduler, F&& f, Args&&... args)
+			{
+				(void)scheduler;
+				return std::forward<F>(f)(std::forward<Args>(args)...);
 			}
 		};
 

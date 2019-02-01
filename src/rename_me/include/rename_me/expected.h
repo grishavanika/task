@@ -15,6 +15,11 @@ namespace nn
 		using Base::Base;
 	};
 
+	template<typename E>
+	using unexpected = nonstd::unexpected_type<E>;
+
+	struct unexpected_void {};
+
 	template<typename T>
 	struct expected<T, void> : std::optional<T>
 	{
@@ -25,13 +30,23 @@ namespace nn
 	template<>
 	struct expected<void, void>
 	{
+		explicit expected()
+			: ok_(true)
+		{
+		}
+
+		explicit expected(unexpected_void)
+			: ok_(false)
+		{
+		}
+
 		bool has_value() const
 		{
-			return true;
+			return ok_;
 		}
-	};
 
-	template<typename E>
-	using unexpected = nonstd::unexpected_type<E>;
+	private:
+		bool ok_;
+	};
 
 } // namespace nn

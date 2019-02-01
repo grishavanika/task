@@ -173,10 +173,12 @@ namespace nn
 			switch (status)
 			{
 			case Status::Canceled:
+#if (0)
 				// Allowed to leave expected<T, E> in unspecified state,
 				// but expected<> should be valid/constructed object
 				assert(task().get().has_value()
 					|| !task().get().has_value());
+#endif
 				break;
 			case Status::InProgress:
 				break;

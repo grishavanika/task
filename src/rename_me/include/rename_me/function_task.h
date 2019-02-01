@@ -7,6 +7,12 @@
 
 namespace nn
 {
+	// Note: when canceled, Task<>::get() should not be invoked
+	// since it's not constructed at all.
+	// #TODO: it's possible to set some custom error in this case,
+	// but requires to have traits since Error can not be default-constructible,
+	// for example. See if this makes sense
+	// 
 	// See Task<>::on_finish() for proper documentation of returned type.
 	// 
 	// #TODO: probably, if function returns T&, reference should not be discarded.

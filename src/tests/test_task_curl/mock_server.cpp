@@ -6,7 +6,6 @@
 
 #include <sstream>
 
-#include <cstdint>
 #include <cassert>
 #include <cstdlib>
 
@@ -35,7 +34,7 @@ namespace
 	void ShutdownImpl(Socket s)
 	{
 		const int status = ::shutdown(s, SD_BOTH);
-		NN_ENSURE(status == 0);
+		(void)status;
 	}
 } // namespace
 #else
@@ -207,33 +206,65 @@ namespace detail
 				*scheduler_, this);
 		}
 
-		std::string receive_once()
+		nn::Task<std::string, int> receive_once() &
 		{
-			std::string chunk;
-			chunk.resize(1024);
-			// Read available (up to 1024 bytes) data
-			const int available = ::recv(socket_, chunk.data()
-				, static_cast<int>(chunk.size()), MSG_PEEK);
-			if (available == 0)
+			struct ReceiveTask
 			{
-				// Connection has been gracefully closed
-				return std::string();
-			}
-			NN_ENSURE(available != SOCKET_ERROR);
-			NN_ENSURE(available <= static_cast<int>(chunk.size()));
-			chunk.resize(available);
-			return chunk;
+				Socket client_;
+				nn::expected<std::string, int> result_;
+
+				ReceiveTask(TcpSocket& client)
+					: client_(client.socket_)
+					, result_(std::string())
+				{
+					result_.value().resize(1024);
+				}
+
+				nn::Status tick(bool cancel)
+				{
+					if (cancel)
+					{
+						return nn::Status::Canceled;
+					}
+					std::string& chunk = result_.value();
+					const int available = ::recv(client_
+						, chunk.data()
+						, static_cast<int>(chunk.size()), 0);
+					const int error = ::WSAGetLastError();
+					if ((available == SOCKET_ERROR) && error == WSAEWOULDBLOCK)
+					{
+						return nn::Status::InProgress;
+					}
+					else if (available == SOCKET_ERROR)
+					{
+						result_ = nn::unexpected<int>(error);
+						return nn::Status::Failed;
+					}
+					chunk.resize(available);
+					return nn::Status::Successful;
+				}
+
+				nn::expected<std::string, int>& get()
+				{
+					return result_;
+				}
+			};
+
+			return nn::Task<std::string, int>::make<ReceiveTask>(
+				*scheduler_, *this);
 		}
 
-		void send(std::string data)
+		nn::Task<void, int> send_once(std::string data) &&
 		{
 			const int length = static_cast<int>(data.size());
 			if (length == 0)
 			{
-				return;
+				return nn::make_task<int>(nn::success, *scheduler_);
 			}
 			const int sent = ::send(socket_, data.data(), length, 0);
-			NN_ENSURE(sent == length);
+			assert(sent == length);
+			// #TODO: async
+			return nn::make_task<int>(nn::success, *scheduler_);
 		}
 
 		~TcpSocket()
@@ -271,6 +302,7 @@ namespace
 
 	GetRequest ParseGetRequest(std::string data)
 	{
+		// Cool "GET / HTTP/1.1" request parsing
 		std::string line;
 		{
 			std::istringstream s(std::move(data));
@@ -298,6 +330,19 @@ namespace
 		return request;
 	}
 
+	std::string MakeResponse(std::string data)
+	{
+		// Dump response creating
+		std::string response;
+		response += "HTTP/1.0 200 OK\n";
+		response += "Server: MockServer\n";
+		response += "Content-type: text/plain; charset=UTF-8\n";
+		response += "Content-Length: " + std::to_string(data.size()) + "\n";
+		response += "\n";
+		response += data;
+		return response;
+	}
+
 } // namespace
 
 SocketsInitializer::SocketsInitializer()
@@ -317,77 +362,52 @@ SocketsInitializer::~SocketsInitializer()
 }
 
 /*explicit*/ MockServer::MockServer(
-	nn::Scheduler& scheduler, IRequestListener& listener)
+	nn::Scheduler& scheduler
+	, IRequestListener& listener
+	, std::string address /*= "127.0.0.1"*/
+	, std::uint16_t port /*= 80*/)
 	: scheduler_(scheduler)
 	, listener_(listener)
 	, socket_(std::make_unique<detail::TcpSocket>(scheduler_))
-	, did_accept_(false)
-	, waiting_accept_(false)
+	, address_(std::move(address))
+	, port_(port)
 {
 }
 
-nn::Task<void, int> MockServer::start(const std::string& address, std::uint16_t port)
+nn::Task<void, int> MockServer::handle_one_connection()
 {
-	nn::forward_error(
-		socket_->bind(address, port)
-		, [=]()
+	auto start = [=]() -> nn::Task<void, int>
 	{
-		//return nn::make_task(nn::success, scheduler_);
-		return socket_->listen();
+		return nn::forward_error(
+			socket_->bind(address_, port_)
+			, [=] { return socket_->listen(); });
+	};
+	auto accept = [=]() -> nn::Task<::detail::TcpSocket, int>
+	{
+		return nn::forward_error(start()
+			, [=] { return socket_->accept(); });
+	};
+	
+	return nn::forward_error(accept()
+		, [&](::detail::TcpSocket&& client)
+	{
+		auto receive = client.receive_once();
+		return nn::forward_error(std::move(receive)
+			, [this, client = std::move(client)]
+				(std::string&& payload) mutable
+		{
+			auto request = ParseGetRequest(std::move(payload));
+			if (request.url.empty())
+			{
+				// #TODO: nice error
+				return nn::make_task(nn::error, scheduler_, 1);
+			}
+			auto response = MakeResponse(listener_.on_get_request(std::move(request.url)));
+			return std::move(client).send_once(std::move(response));
+		});
 	});
-
-	(void)address;
-	(void)port;
-	return nn::make_task<int>(nn::success, scheduler_);
-}
-
-void MockServer::handle_one_connection()
-{
-	NN_ENSURE(!waiting_connection());
-	NN_ENSURE(!had_connection());
-
-	//(void)start("127.0.0.1", 80)
-	//	.then([=](const nn::Task<void, int>& start_task) mutable
-	//{
-	//	return nn::forward_success(start_task, [=]()
-	//	{
-	//		return socket_->accept();
-	//	});
-	//})
-	//	.then([=](const nn::Task<detail::TcpSocket, int>& accept_task)
-	//{
-	//	return nn::make_task(scheduler_, accept_task.get_once());
-	//});
-
-	//auto client = socket_->accept();
-	//waiting_accept_ = false;
-	//did_accept_ = true;
-
-	//if (!client.is_valid())
-	//{
-	//	return;
-	//}
-
-	//auto request = ParseGetRequest(client.receive_once());
-	//if (request.url.empty())
-	//{
-	//	return;
-	//}
-	//auto response = listener_.on_get_request(std::move(request.url));
-	//client.send(std::move(response));
-}
-
-bool MockServer::had_connection() const
-{
-	return did_accept_;
-}
-
-bool MockServer::waiting_connection() const
-{
-	return waiting_accept_;
 }
 
 MockServer::~MockServer()
 {
-	NN_ENSURE(!waiting_connection());
 }

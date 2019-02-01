@@ -9,50 +9,150 @@ namespace nn
 	namespace detail
 	{
 
-		template<bool ErrorMatch, typename T, typename E, typename F, typename Return>
+		template<typename Expected>
+		struct VoidErrorExpected;
+
+		template<typename T>
+		struct VoidErrorExpected<::nn::expected<T, void>>
+		{
+			static ::nn::expected<T, void> make()
+			{
+				return ::nn::expected<T, void>();
+			}
+		};
+
+		template<>
+		struct VoidErrorExpected<::nn::expected<void, void>>
+		{
+			static ::nn::expected<void, void> make()
+			{
+				return ::nn::expected<void, void>(::nn::unexpected_void());
+			}
+		};
+
+		template<typename Return, typename T, typename E>
+		typename Return::type InvokeError(Scheduler& scheduler, const Task<T, E>& task)
+		{
+			using type = typename Return::type;
+			using Noop = detail::NoopTask<typename type::value_type, typename type::error_type>;
+			using Expected = typename type::value;
+			using Unexpected = typename ::nn::unexpected<typename type::error_type>;
+
+			return type::template make<Noop>(scheduler
+				, Expected(Unexpected(std::move(task.get().error()))));
+		}
+
+		template<typename Return, typename T>
+		typename Return::type InvokeError(Scheduler& scheduler, const Task<T, void>& task)
+		{
+			(void)task;
+
+			using type = typename Return::type;
+			using Noop = detail::NoopTask<typename type::value_type, void>;
+			using Expected = typename type::value;
+
+			return type::template make<Noop>(scheduler, VoidErrorExpected<Expected>::make());
+		}
+
+		template<typename Return>
+		struct CallerAccept
+		{
+			using type = typename Return::type;
+
+			template<typename T, typename E, typename F>
+			static type invoke(Scheduler& scheduler, const Task<T, E>& task, F&& f)
+			{
+				return Return::template invoke(scheduler
+					, std::forward<F>(f), std::move(task.get_once().value()));
+			}
+
+			template<typename E, typename F>
+			static type invoke(Scheduler& scheduler, const Task<void, E>& task, F&& f)
+			{
+				return Return::template invoke(scheduler
+					, std::forward<F>(f)/*void*/);
+			}
+		};
+
+		template<typename Return>
+		struct CallerDiscard
+		{
+			using type = typename Return::type;
+
+			template<typename T, typename E, typename F>
+			static type invoke(Scheduler& scheduler, const Task<T, E>& task, F&& f)
+			{
+				(void)task;
+				return Return::template invoke(scheduler
+					, std::forward<F>(f)/*void*/);
+			}
+		};
+
+		// using Task = F(T)
+		// expects: Task::error_type == E
+		template<bool ErrorMatch, typename T, typename E, typename F
+			, typename Return, typename Caller>
 		struct InvokableErrorMatchImpl
 		{
 			using is_valid = std::true_type;
 			using type = typename Return::type;
 
+			static type invoke(Scheduler& scheduler, const Task<T, E>& task, F&& f)
+			{
+				assert(task.is_finished());
+				if (task.is_successful())
+				{
+					assert(task.get().has_value());
+					return Caller::template invoke(scheduler, task, std::forward<F>(f));
+				}
+
+				assert(!task.get().has_value());
+				(void)f;
+				return InvokeError<Return>(scheduler, task);
+			}
 		};
 
-		template<typename T, typename E, typename F, typename Return>
-		struct InvokableErrorMatchImpl<false, T, E, F, Return>
+		template<typename T, typename E, typename F
+			, typename Return, typename Caller>
+		struct InvokableErrorMatchImpl<false, T, E, F, Return, Caller>
 		{
+			// Return type from F(Arg) does not match E
 			using is_valid = std::false_type;
 		};
 
-		template<bool Valid, typename T, typename E, typename F, typename Return>
+		template<bool Valid, typename T, typename E, typename F
+			, typename Return, typename Caller>
 		struct InvokableImpl : InvokableErrorMatchImpl<
-			std::is_same_v<E, typename Return::type::error_type>, T, E, F, Return>
-		{
-		};
-
-		template<typename T, typename F, typename E, typename Return>
-		struct InvokableImpl<false, T, F, E, Return>
+			std::is_same_v<E, typename Return::type::error_type>, T, E, F, Return, Caller>
 		{
 		};
 
 		template<typename T, typename E, typename F
+			, typename Return, typename Caller>
+		struct InvokableImpl<false, T, E, F, Return, Caller>
+		{
+			// F(Arg)/F() is not valid
+			using is_valid = std::false_type;
+		};
+
+		template<typename T, typename E, typename F
+			// Functor (F) discards successful data (T)
 			, typename ReturnDiscard    = FunctionTaskReturn<F>
+			// Functor (F) accepts successful data (T&&)
 			, typename ReturnAccept     = FunctionTaskReturn<F, std::add_rvalue_reference_t<T>>
-			, typename InvokableDiscard = InvokableImpl<ReturnDiscard::is_valid::value, T, E, F, ReturnDiscard>
-			, typename InvokableAccept  = InvokableImpl<ReturnAccept::is_valid::value, T, E, F, ReturnAccept>>
+			, typename InvokableAccept  = InvokableImpl<ReturnAccept::is_valid::value, T, E, F, ReturnAccept, CallerAccept<ReturnAccept>>
+			, typename InvokableDiscard = InvokableImpl<ReturnDiscard::is_valid::value, T, E, F, ReturnDiscard, CallerDiscard<ReturnDiscard>>>
 		struct Invokable
 			: InvokableDiscard
 			, InvokableAccept
 		{
-#if (1)     // Disabling to minimize compile-time a bit.
-			// Can be enabled any time
-			static_assert((ReturnDiscard::is_valid::value
-				&& ReturnAccept::is_valid::value) == false
+			static_assert((InvokableDiscard::is_valid::value
+				&& InvokableAccept::is_valid::value) == false
 				, "Either f() or f(T) should be valid, not both. Remove auto ?");
 
 			using is_valid = std::disjunction<
-				typename ReturnDiscard::is_valid
-				, typename ReturnAccept::is_valid>;
-#endif
+				typename InvokableDiscard::is_valid
+				, typename InvokableAccept::is_valid>;
 		};
 
 		template<typename T, typename E, typename F>
@@ -60,26 +160,19 @@ namespace nn
 
 	} // namespace detail
 
-	// auto result = f()
-	// auto result = f(T&&)
-	//				 result can be: (1) void (2) Task<...> (3) expected<...>
-	//				T can be void
-	// using Error = typaneme result::error_type
-	// assert(is_same<Error, E>
-	// 
-
-	// + Scheduler
+	// #TODO: + Scheduler
+	// #TODO: + transform_error ?
 	template<typename T, typename E, typename F>
 	detail::InvokableT<T, E, F> forward_error(Task<T, E>&& root, F&& f)
 	{
-		return root.then([f = std::forward<F>(f)](const Task<T, E>& task)
+		using Invokable = detail::Invokable<T, E, F>;
+		Scheduler* scheduler = &root.scheduler();
+		return root.then(*scheduler
+			, [scheduler, f = std::forward<F>(f)]
+				(const Task<T, E>& task) mutable
 		{
-			if (task.is_failed())
-			{
-				assert(!task.get().has_value());
-				return make_task(task.scheduler(), task.get_once());
-			}
-			return f();
+			return Invokable::template invoke(*scheduler, task
+				, std::forward<decltype(f)>(f));
 		});
 	}
 

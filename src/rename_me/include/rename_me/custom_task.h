@@ -30,7 +30,8 @@ namespace nn
 		// It's expected for get() to return expected with
 		// (1) has_value() == true when last tick was Successful
 		// (2) has_value() == false (e.g, error is valid) when Failed
-		// (3) unspecified state when Canceled
+		// (3) unspecified (task-defined) state when Canceled.
+		//     (e.g., not constructed at all, see Function task Canceled state)
 		expected<T, E>& get();
 		// Optional.
 		// If initial_status() is not InProgress,

@@ -10,37 +10,10 @@
 using namespace nn;
 using namespace nn::curl;
 
+using ::testing::Return;
+
 namespace
 {
-
-	class BackgroundServer
-	{
-	public:
-		BackgroundServer(IRequestListener& listener)
-			: sockets_()
-			, server_(listener)
-			, worker_(&MockServer::handle_one_connection, &server_)
-		{
-		}
-
-		~BackgroundServer()
-		{
-			assert(server_.had_connection());
-			assert(!server_.waiting_connection());
-			worker_.join();
-		}
-
-		bool was_connection_handled()
-		{
-			return server_.had_connection();
-		}
-
-	private:
-		SocketsInitializer sockets_;
-		MockServer server_;
-		std::thread worker_;
-	};
-
 	std::string ToString(const Buffer& data)
 	{
 		if (data.empty())
@@ -55,20 +28,23 @@ TEST(TaskCurl, Simple_Get)
 {
 	struct Response : IRequestListener
 	{
-		virtual std::string on_get_request(std::string /*url*/) override
-		{
-			return "data";
-		}
+		MOCK_METHOD1(on_get_request, std::string (std::string));
 	};
 	Response response;
-	BackgroundServer server(response);
+	EXPECT_CALL(response, on_get_request("/test"))
+		.WillOnce(Return("data"));
 
 	Scheduler scheduler;
-	Task<Buffer, CurlError> get = make_task(scheduler, CurlGet("localhost"));
-	while (get.is_in_progress())
+	SocketsInitializer sockets;
+	MockServer server(scheduler, response, "127.0.0.1", 80);
+
+	auto receive = server.handle_one_connection();
+	auto get = make_task(scheduler, CurlGet("localhost/test"));
+	while (scheduler.has_tasks())
 	{
 		(void)scheduler.poll();
 	}
+	ASSERT_TRUE(receive.is_successful());
 	ASSERT_TRUE(get.get().has_value());
 	ASSERT_EQ("data", ToString(get.get().value()));
 }
