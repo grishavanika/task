@@ -20,6 +20,8 @@
 #if defined(_WIN32)
 #  define _WINSOCK_DEPRECATED_NO_WARNINGS
 #  include <WinSock2.h>
+#  include <WS2tcpip.h>
+
 namespace
 {
 	using Socket = SOCKET;
@@ -36,19 +38,41 @@ namespace
 		const int status = ::shutdown(s, SD_BOTH);
 		(void)status;
 	}
+
+	void SetAsyncSocket(Socket s, bool enable = true)
+	{
+		u_long async = enable ? 1 : 0;
+		const int status = ::ioctlsocket(s, FIONBIO, &async);
+		NN_ENSURE(status == NO_ERROR);
+	}
+
+	int LastSocketError()
+	{
+		return ::WSAGetLastError();
+	}
+
+	bool IsSocketNonblockingError(int error)
+	{
+		return ((error == WSAEWOULDBLOCK) || (error == EAGAIN));
+	}
+
 } // namespace
 #else
 #  include <netinet/in.h>
 #  include <arpa/inet.h>
 #  include <sys/types.h>
 #  include <sys/socket.h>
+#  include <unistd.h>
+#  include <fcntl.h>
+#  include <errno.h>
 
 namespace
 {
 	using Socket = int;
 	const Socket kInvalidSocket = -1;
-	
-	void CloseSocketImpl(SOCKET s)
+	const int SOCKET_ERROR = -1;
+
+	void CloseSocketImpl(Socket s)
 	{
 		const int status = ::close(s);
 		NN_ENSURE(status == 0);
@@ -57,28 +81,41 @@ namespace
 	void ShutdownImpl(Socket s)
 	{
 		const int status = ::shutdown(s, SHUT_RDWR);
+		(void)status;
+	}
+
+	void SetAsyncSocket(Socket s, bool enable = true)
+	{
+		int flags = ::fcntl(s, F_GETFL, 0);
+		NN_ENSURE(flags != 0);
+		flags = enable ? (flags | O_NONBLOCK) : (flags & ~O_NONBLOCK);
+		const int status = ::fcntl(s, F_SETFL, flags);
 		NN_ENSURE(status == 0);
 	}
+
+	int LastSocketError()
+	{
+		return errno;
+	}
+
+	bool IsSocketNonblockingError(int error)
+	{
+		return ((error == EWOULDBLOCK) || (error == EAGAIN));
+	}
+
 } // namespace
 #endif
 
 namespace
 {
 
-	nn::expected<void, int> MakeExpectedFromStatus(int status, int success = 0)
+	nn::expected<void, int> MakeExpectedFromStatus(int status, int error)
 	{
-		if (status == success)
+		if (status != SOCKET_ERROR)
 		{
 			return nn::expected<void, int>();
 		}
-		return nn::expected<void, int>(nn::unexpected<int>(status));
-	}
-
-	void SetAsyncSocket(Socket s)
-	{
-		u_long async = 1;
-		const int status = ::ioctlsocket(s, FIONBIO, &async);
-		NN_ENSURE(status == NO_ERROR);
+		return nn::expected<void, int>(nn::unexpected<int>(error));
 	}
 
 } // namespace
@@ -128,7 +165,7 @@ namespace detail
 				addr.sin_addr.s_addr = ::inet_addr(address.c_str());
 				addr.sin_port = htons(port);
 				const int status = ::bind(socket_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
-				return MakeExpectedFromStatus(status);
+				return MakeExpectedFromStatus(status, LastSocketError());
 			});
 		}
 
@@ -137,7 +174,7 @@ namespace detail
 			return nn::make_task(*scheduler_, [=]()
 			{
 				const int status = ::listen(socket_, queue_len);
-				return MakeExpectedFromStatus(status);
+				return MakeExpectedFromStatus(status, LastSocketError());
 			});
 		}
 
@@ -176,19 +213,16 @@ namespace detail
 						return nn::Status::Canceled;
 					}
 					sockaddr_in addr{};
-					int addr_len = sizeof(addr);
+					socklen_t addr_len = sizeof(addr);
 					Socket client = ::accept(server_->socket_
 						, reinterpret_cast<sockaddr*>(&addr), &addr_len);
-					const int error = ::WSAGetLastError();
+					const int error = LastSocketError();
 					if (client != kInvalidSocket)
 					{
 						result_ = TcpSocket(*server_->scheduler_, client);
 						return nn::Status::Successful;
 					}
-
-					// http://man7.org/linux/man-pages/man2/accept.2.html
-					// [...] accept() fails with the error EAGAIN or EWOULDBLOCK.
-					if (error == WSAEWOULDBLOCK)
+					else if (IsSocketNonblockingError(error))
 					{
 						return nn::Status::InProgress;
 					}
@@ -230,8 +264,8 @@ namespace detail
 					const int available = ::recv(client_
 						, chunk.data()
 						, static_cast<int>(chunk.size()), 0);
-					const int error = ::WSAGetLastError();
-					if ((available == SOCKET_ERROR) && error == WSAEWOULDBLOCK)
+					const int error = LastSocketError();
+					if ((available == SOCKET_ERROR) && IsSocketNonblockingError(error))
 					{
 						return nn::Status::InProgress;
 					}

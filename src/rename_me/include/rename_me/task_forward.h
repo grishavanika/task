@@ -171,7 +171,7 @@ namespace nn
 			, [scheduler, f = std::forward<F>(f)]
 				(const Task<T, E>& task) mutable
 		{
-			return Invokable::template invoke(*scheduler, task
+			return Invokable::invoke(*scheduler, task
 				, std::forward<decltype(f)>(f));
 		});
 	}
