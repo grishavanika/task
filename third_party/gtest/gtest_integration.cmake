@@ -14,12 +14,12 @@ macro(find_gtest found_gtest)
 		if (NOT EXISTS ${gmock_library})
 			message(FATAL_ERROR "Assumption that gmock is near gtest library is wrong. "
 				"GTest: '${GTEST_LIBRARY}'. Expected GMock: '${gmock_library}'")
-		endif()
+		endif ()
 		string(REPLACE "gtest" "gmock" gmock_library_debug ${GTEST_LIBRARY_DEBUG})
 		if (NOT EXISTS ${gmock_library_debug})
 			message(FATAL_ERROR "Assumption that debug gmock is near gtest library is wrong. "
 				"GTest: '${GTEST_LIBRARY_DEBUG}'. Expected GMock: '${gmock_library_debug}'")
-		endif()
+		endif ()
 		target_link_libraries(GTest_Integrated INTERFACE optimized ${gmock_library})
 		target_link_libraries(GTest_Integrated INTERFACE debug ${gmock_library_debug})
 
@@ -30,8 +30,8 @@ macro(find_gtest found_gtest)
 				/wd4251
 				# non-DLL-interface used as base for DLL-interface
 				/wd4275)
-		endif()
-	endif()
+		endif ()
+	endif ()
 
 
 endmacro()
@@ -46,7 +46,7 @@ macro(setup_gtest_lib lib_name)
 	if (MSVC)
 		target_compile_definitions(${lib_name} PUBLIC
 			-D_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-	endif()
+	endif ()
 
 	# Disable overloads for std::tr1::tuple type
 	target_compile_definitions(${lib_name} PUBLIC
@@ -67,7 +67,7 @@ macro(setup_gtest_lib lib_name)
 			-Wno-unused-member-function
 			-Wno-unused-parameter
 			-Wno-deprecated)
-	endif()
+	endif ()
 
 	set_target_properties(${lib_name} PROPERTIES FOLDER third_party)
 
@@ -95,10 +95,10 @@ if (only_msvc)
 	find_gtest(found_gtest)
 	if (NOT found_gtest)
 		message("Failed to find GTest/GMock")
-	endif()
-endif()
+	endif ()
+endif ()
 
 if (NOT found_gtest)
 	message("Integrating GTest/GMock from git")
 	setup_gtest_from_git()
-endif()
+endif ()

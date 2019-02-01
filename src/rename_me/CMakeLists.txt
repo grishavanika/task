@@ -16,4 +16,4 @@ target_link_libraries(${lib_name} PUBLIC expected-lite)
 # depends on pthread
 if (NOT ${windows} AND ${gcc})
 	target_link_libraries(${lib_name} PUBLIC pthread)
-endif()
+endif ()

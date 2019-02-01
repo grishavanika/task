@@ -19,7 +19,7 @@ if (clang_on_msvc)
 	# TODO: make this work. Now it fails to compile with
 	# invalid argument '/MDd' not allowed with '-fsanitize=address'
 	# add_compile_options(-fsanitize=address)
-endif()
+endif ()
 
 add_subdirectory(third_party)
 add_subdirectory(src)
