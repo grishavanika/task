@@ -6,6 +6,11 @@ set path=%path%;C:\Programs\mingw_gcc_7.3.0\bin;
 set path=%path%;C:\Programs\CMake\bin
 set vcpkg_cmake=C:/libs/vcpkg/scripts/buildsystems/vcpkg.cmake
 
+:: GCC on WSL
+set build_sh=build_all.sh
+set bash=C:\Windows\System32\bash.exe
+start /WAIT /B %bash% -c "sh %build_sh%"
+
 :: MSVC
 cd tools
 python generate_project.py --compiler=cl --platform=x64 --vcpkg=%vcpkg_cmake%
