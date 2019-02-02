@@ -18,6 +18,11 @@ namespace nn
 	{
 	}
 
+	Scheduler::~Scheduler()
+	{
+		assert(!has_tasks());
+	}
+
 	void Scheduler::post(detail::ErasedTask task)
 	{
 		assert(task);

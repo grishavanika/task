@@ -12,6 +12,7 @@ namespace nn
 	{
 	public:
 		explicit Scheduler();
+		~Scheduler();
 		Scheduler(Scheduler&& rhs) = delete;
 		Scheduler& operator=(Scheduler&& rhs) = delete;
 		Scheduler(const Scheduler& rhs) = delete;

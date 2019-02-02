@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include <rename_me/task_forward.h>
+#include <rename_me/forward_task.h>
 #include <rename_me/noop_task.h>
 
 #include "test_tools.h"

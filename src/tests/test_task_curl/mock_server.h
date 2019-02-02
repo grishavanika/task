@@ -50,7 +50,7 @@ public:
 
 private:
 	void on_new_connection(::detail::TcpSocket&& client);
-	struct AcceptForeverTask;
+	nn::Task<StartStats> accept_forever();
 
 private:
 	nn::Scheduler& scheduler_;

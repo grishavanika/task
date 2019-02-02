@@ -2,7 +2,8 @@
 
 #include <rename_me/scheduler.h>
 #include <rename_me/function_task.h>
-#include <rename_me/task_forward.h>
+#include <rename_me/forward_task.h>
+#include <rename_me/for_loop_task.h>
 
 #include <sstream>
 
@@ -380,66 +381,6 @@ namespace
 
 } // namespace
 
-struct MockServer::AcceptForeverTask
-{
-	explicit AcceptForeverTask(MockServer& server)
-		: server_(server)
-	{
-	}
-
-	nn::Status tick(bool cancel_requested)
-	{
-		if (cancel_requested)
-		{
-			if (current_.is_valid())
-			{
-				current_.try_cancel();
-				return current_.is_finished()
-					? nn::Status::Canceled : nn::Status::InProgress;
-			}
-			return nn::Status::Canceled;
-		}
-		if (current_.is_valid())
-		{
-			switch (current_.status())
-			{
-				case nn::Status::Canceled:
-				{
-					return nn::Status::Canceled;
-				}
-				case nn::Status::InProgress:
-				{
-					return nn::Status::InProgress;
-				}
-				case nn::Status::Failed:
-				{
-					data_.value().error = current_.get().error();
-					return nn::Status::Failed;
-				}
-				case nn::Status::Successful:
-				{
-					++data_.value().accepted_sockets_count;
-					server_.on_new_connection(std::move(current_.get().value()));
-					break;
-				}
-			}
-		}
-
-		current_ = server_.socket_->accept();
-		return nn::Status::InProgress;
-	}
-
-	nn::expected<StartStats, void>& get()
-	{
-		return data_;
-	}
-
-private:
-	MockServer& server_;
-	nn::expected<StartStats, void> data_ = StartStats();
-	nn::Task<::detail::TcpSocket, int> current_;
-};
-
 SocketsInitializer::SocketsInitializer()
 {
 #if defined(_WIN32)
@@ -483,6 +424,36 @@ void MockServer::on_new_connection(::detail::TcpSocket&& client)
 	});
 }
 
+nn::Task<StartStats> MockServer::accept_forever()
+{
+	return nn::make_forever_loop_task(
+		nn::make_context(scheduler_, StartStats())
+		, [this](nn::Context<StartStats>&)
+	{
+		return socket_->accept();
+	}
+		, [this](nn::Context<StartStats>& context
+			, const nn::Task<::detail::TcpSocket, int>& accept)
+	{
+		if (accept.is_successful())
+		{
+			++context.data().accepted_sockets_count;
+			on_new_connection(std::move(accept.get().value()));
+			return true;
+		}
+		else if (accept.is_canceled())
+		{
+			return false;
+		}
+		else if (accept.is_failed())
+		{
+			context.data().error = accept.get().error();
+			return false;
+		}
+		return true;
+	});
+}
+
 nn::Task<StartStats> MockServer::start(const std::string& address
 	, std::uint16_t port, int backlog /*= 1*/)
 {
@@ -495,7 +466,7 @@ nn::Task<StartStats> MockServer::start(const std::string& address
 	{
 		if (listen.is_successful())
 		{
-			return nn::Task<StartStats>::make<AcceptForeverTask>(scheduler_, *this);
+			return accept_forever();
 		}
 		assert(!listen.is_canceled()
 			&& "Unhandled case: listen.get().error() may not be valid");
