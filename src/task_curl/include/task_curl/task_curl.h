@@ -47,7 +47,6 @@ namespace nn
 
 			class CurlTask
 			{
-				using Error = unexpected<CurlError>;
 			public:
 				explicit CurlTask(CurlGet&& curl_get);
 				~CurlTask();
@@ -60,6 +59,7 @@ namespace nn
 
 				Status on_finish();
 				Status on_poll_error(CURLMcode code);
+				void set_generic_error();
 
 				static size_t WriteCallback(char* ptr, size_t size, size_t nmemb, void* userdata);
 

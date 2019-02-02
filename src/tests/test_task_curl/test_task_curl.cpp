@@ -106,7 +106,8 @@ TEST(TaskCurl, Multiple_Get)
 	}
 	ASSERT_TRUE(server_task.is_finished());
 
-	const unsigned accepted_count = server_task.get().value().accepted_sockets_count;
+	StartStats stats = server_task.get().value_or(server_task.get().error());
+	const unsigned accepted_count = stats.accepted_sockets_count;
 	unsigned valid_response = 0;
 	for (auto& request : requests)
 	{

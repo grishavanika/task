@@ -119,16 +119,18 @@ namespace nn
 				const Status status = TickBase::get()(context_, cancel_requested);
 				switch (status)
 				{
-				case Status::Canceled:
-					// Intentionally not calling finish
-					break;
 				case Status::InProgress:
 					// Continue, nothing to do
 					break;
 				case Status::Successful:
+					data_.emplace_once(FinishBase::get()(context_));
+					assert(get().has_value());
+					break;
+				case Status::Canceled:
 					// [[fallthrough]]
 				case Status::Failed:
 					data_.emplace_once(FinishBase::get()(context_));
+					assert(!get().has_value());
 					break;
 				}
 				return status;

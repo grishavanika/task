@@ -34,6 +34,12 @@ namespace nn
 			using storage       = LazyStorage<expected<R, void>>;
 			using is_void       = std::bool_constant<false>;
 
+			static void set_default_error(Scheduler&, storage& data)
+			{
+				assert(!data.has_value());
+				data.emplace_once(MakeExpectedWithDefaultError<expected_type>());
+			}
+
 			static Status tick_results(storage&, bool)
 			{
 				return Status::Successful;
@@ -61,6 +67,12 @@ namespace nn
 			using expected_type = expected<void, void>;
 			using storage       = LazyStorage<expected<void, void>>;
 			using is_void       = std::bool_constant<true>;
+
+			static void set_default_error(Scheduler&, storage& data)
+			{
+				assert(!data.has_value());
+				data.emplace_once(MakeExpectedWithDefaultError<expected_type>());
+			}
 
 			static Status tick_results(storage&, bool)
 			{
@@ -97,6 +109,12 @@ namespace nn
 			using storage       = LazyStorage<expected<T, E>>;
 			using is_void       = std::bool_constant<false>;
 
+			static void set_default_error(Scheduler&, storage& data)
+			{
+				assert(!data.has_value());
+				data.emplace_once(MakeExpectedWithDefaultError<expected_type>());
+			}
+
 			static Status tick_results(storage& data, bool)
 			{
 				return (data.get().has_value() ? Status::Successful : Status::Failed);
@@ -124,6 +142,12 @@ namespace nn
 			using expected_type = expected<T, E>;
 			using storage       = LazyStorage<Task<T, E>>;
 			using is_void       = std::bool_constant<false>;
+
+			static void set_default_error(Scheduler& scheduler, storage& data)
+			{
+				assert(!data.has_value());
+				data.emplace_once(type::template make<detail::NoopTask<T, E>>(scheduler, detail::CanceledTag()));
+			}
 
 			static Status tick_results(storage& data, bool cancel_requested)
 			{
@@ -188,6 +212,7 @@ namespace nn
 		{
 			using IsTask = typename Return::is_task;
 			using IsApplyVoid = typename Return::is_void;
+			using expected_type = typename Return::expected_type;
 		public:
 			explicit FunctionTask(Invoker&& invoker)
 				: Invoker(std::move(invoker))
@@ -205,6 +230,9 @@ namespace nn
 			{
 				if (cancel_requested && !invoked_)
 				{
+					// #TODO: need to pass Scheduler to the tick()
+					Scheduler xxx_do_not_commit;
+					Return::set_default_error(xxx_do_not_commit, *this);
 					return Status::Canceled;
 				}
 				if (IsTask() && invoked_)
@@ -218,6 +246,8 @@ namespace nn
 				}
 				if (!invoker().can_invoke())
 				{
+					Scheduler xxx_do_not_commit;
+					Return::set_default_error(xxx_do_not_commit, *this);
 					return Status::Canceled;
 				}
 

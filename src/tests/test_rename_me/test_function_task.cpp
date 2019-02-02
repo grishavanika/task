@@ -98,7 +98,8 @@ namespace
 		: expected<void, void>
 	{
 		explicit TestTask(Status& status)
-			: status_(status)
+			: expected<void, void>()
+			, status_(status)
 		{
 		}
 
@@ -106,6 +107,7 @@ namespace
 		{
 			if (cancel_requested)
 			{
+				get() = MakeExpectedWithDefaultError<expected<void, void>>();
 				return Status::Canceled;
 			}
 			return status_;
@@ -236,9 +238,7 @@ TEST(FunctionTask, Failed_Expected_Return_Fails_Task)
 	Task<int, int> task = make_task(sch, 
 		[]
 	{
-		// Fail task
-		using error = ::nn::unexpected<int>;
-		return expected<int, int>(error(1));
+		return MakeExpectedWithError<expected<int, int>>(1);
 	});
 
 	ASSERT_EQ(std::size_t(1), sch.poll());
@@ -288,9 +288,7 @@ TEST(FunctionTask, Failed_Task_Return_Fails_Task)
 	{
 		return make_task(sch, []
 		{
-			// Fail task
-			using error = ::nn::unexpected<int>;
-			return expected<int, int>(error(1));
+			return MakeExpectedWithError<expected<int, int>>(1);
 		});
 	});
 
@@ -345,6 +343,7 @@ TEST(FunctionTask, Cancel_Requested_For_Inner_Task)
 	ASSERT_EQ(std::size_t(2), sch.poll());
 	ASSERT_EQ(Status::Canceled, task.status());
 	ASSERT_TRUE(task.is_canceled());
+	ASSERT_FALSE(task.get().has_value());
 }
 
 TEST(FunctionTask, Returns_Non_Default_Constructiable_Value)
@@ -546,12 +545,11 @@ TEST(FunctionTask, Invoke_For_Function_That_Returns_Expected)
 	auto f = [](int v)
 	{
 		using Return = expected<int, int>;
-		using Unexpected = ::nn::unexpected<int>;
 		if (v >= 0)
 		{
 			return Return(v);
 		}
-		return Return(Unexpected(v * -1));
+		return MakeExpectedWithError<Return>(v * -1);
 	};
 
 	{

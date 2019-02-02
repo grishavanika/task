@@ -244,8 +244,7 @@ TEST(OnFinish, On_Fail_Is_Successful_When_Task_Finish_With_Fail)
 	Task<int, int> failed = make_task(sch
 		, []
 	{
-		using error = ::nn::unexpected<int>;
-		return expected<int, int>(error(1));
+		return MakeExpectedWithError<expected<int, int>>(1);
 	});
 
 	bool fail_invoked = false;
@@ -285,8 +284,7 @@ TEST(OnFinish, On_Success_Is_Failed_And_Canceled_When_Task_Finish_With_Fail)
 	Task<int, int> failed = make_task(sch
 		, []
 	{
-		using error = ::nn::unexpected<int>;
-		return expected<int, int>(error(1));
+		return MakeExpectedWithError<expected<int, int>>(1);
 	});
 
 	bool success_invoked = false;

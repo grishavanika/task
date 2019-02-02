@@ -95,8 +95,7 @@ TEST(Noop, Status_Is_Reflected_From_Expected)
 	{
 		Scheduler sch;
 		using Expected = expected<int, int>;
-		using Unexpected = ::nn::unexpected<int>;
-		Task<int, int> task = make_task(sch, Expected(Unexpected(1)));
+		Task<int, int> task = make_task(sch, MakeExpectedWithError<Expected>(1));
 		ASSERT_TRUE(task.is_finished());
 		ASSERT_TRUE(task.is_failed());
 		ASSERT_FALSE(task.get().has_value());

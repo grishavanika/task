@@ -8,6 +8,7 @@
 
 namespace nn
 {
+	class Scheduler;
 
 	enum class Status : std::uint8_t
 	{
@@ -28,10 +29,8 @@ namespace nn
 		// finish status returned from tick().
 		// 
 		// It's expected for get() to return expected with
-		// (1) has_value() == true when last tick was Successful
-		// (2) has_value() == false (e.g, error is valid) when Failed
-		// (3) unspecified (task-defined) state when Canceled.
-		//     (e.g., not constructed at all, see Function task Canceled state)
+		// (1) has_value() == true when last tick was _Successful_
+		// (2) has_value() == false (e.g, error is valid) when _Failed OR Canceled_
 		expected<T, E>& get();
 		// Optional.
 		// If initial_status() is not InProgress,
@@ -64,6 +63,17 @@ namespace nn
 			, typename detail::VoidifySame<
 				expected<T, E>&, decltype(std::declval<CustomTask&>()
 					.get())>::type>;
+
+#if (0)
+	template<typename CustomTask, typename T, typename E>
+	using CustomTaskInterface2 = std::void_t<
+			typename detail::VoidifySame<
+				Status, decltype(std::declval<CustomTask&>()
+					.tick(std::declval<Scheduler&>(), bool()))>::type
+			, typename detail::VoidifySame<
+				expected<T, E>&, decltype(std::declval<CustomTask&>()
+					.get())>::type>;
+#endif
 
 	template<typename CustomTask, typename T, typename E
 		, typename = void>

@@ -28,8 +28,7 @@ namespace
 	Task<void, int> CreateVoidFailTask(Scheduler& sch, int v)
 	{
 		using Expected = expected<void, int>;
-		using Unexpected = ::nn::unexpected<int>;
-		return make_task(sch, Expected(Unexpected(v)));
+		return make_task(sch, MakeExpectedWithError<Expected>(v));
 	}
 
 	Task<int, void> CreateVoidErrorTask(Scheduler& sch, int v)

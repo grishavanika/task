@@ -9,37 +9,15 @@ namespace nn
 	namespace detail
 	{
 
-		template<typename Expected>
-		struct VoidErrorExpected;
-
-		template<typename T>
-		struct VoidErrorExpected<::nn::expected<T, void>>
-		{
-			static ::nn::expected<T, void> make()
-			{
-				return ::nn::expected<T, void>();
-			}
-		};
-
-		template<>
-		struct VoidErrorExpected<::nn::expected<void, void>>
-		{
-			static ::nn::expected<void, void> make()
-			{
-				return ::nn::expected<void, void>(::nn::unexpected_void());
-			}
-		};
-
 		template<typename Return, typename T, typename E>
 		typename Return::type InvokeError(Scheduler& scheduler, const Task<T, E>& task)
 		{
 			using type = typename Return::type;
 			using Noop = detail::NoopTask<typename type::value_type, typename type::error_type>;
 			using Expected = typename type::value;
-			using Unexpected = typename ::nn::unexpected<typename type::error_type>;
 
 			return type::template make<Noop>(scheduler
-				, Expected(Unexpected(std::move(task.get().error()))));
+				, MakeExpectedWithError<Expected>(std::move(task.get().error())));
 		}
 
 		template<typename Return, typename T>
@@ -51,7 +29,8 @@ namespace nn
 			using Noop = detail::NoopTask<typename type::value_type, void>;
 			using Expected = typename type::value;
 
-			return type::template make<Noop>(scheduler, VoidErrorExpected<Expected>::make());
+			return type::template make<Noop>(scheduler
+				, MakeExpectedWithDefaultError<Expected>());
 		}
 
 		template<typename Return>

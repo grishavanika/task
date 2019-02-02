@@ -66,7 +66,7 @@ See [simple_then example](task/blob/master/src/examples/example_simple_then/main
 8. Polish memory layout for internal tasks.
 9. Default (thread-local ?) Scheduler's ?
 10. Compare to continuable: https://github.com/Naios/continuable
-11. Attach `Info` to the task.
+11. [*can't be done without some kind of RTTI*] Attach `Info` to the task.
     This allows to have:
       - NoInfo (in Retail, for example)
           - configurable with NN_DISABLE_INFO
@@ -92,6 +92,49 @@ struct ExecutionInfo : DebugInfo { TaskHandle parent; /**/ };
 
 struct CustomInfo : TaskInfo { int cookie; /**/ };
 ```
+
+12. Because of Cancel, we need to require Error to be default-constructible
+    to be able to create expected<..., Error> in any case, when cancel() happens
+    in runtime.
+    
+    This mostly needed to ensure that no matter what - client can always
+    get expected<...> from the Task<...> even if it was canceled.
+    It's custom's task responsibility to handle cancel nicely.
+    This also allows to make nice API that unwraps Task<T, E>
+    to `on_success([](T&&) {})` and `on_fail([](E&&, bool canceled))`, for example.
+    
+    Looks like this allows also remove LazyStorage<> since we always can build
+    default expected with error state.
+
+13. Make generalization: let client provides customization of our traits
+    that will tell how to get/set success and error values to some type T.
+    We can do something like `template<typename Data> BasicTask` and Task be
+    `using template<typename T, typename E> Task = BasicTask<expected<T, E>>`.
+    
+    This allows to optimize storage even more for cases like `expected<void, void>`.
+```
+template<typename Data>
+struct DataTraits;
+
+template<typename T, typename E>
+struct DataTraits<expected<T, E>>
+{
+	using value_type = T;
+	using error_type = E;
+	using type = expected<T, E>;
+
+	value_type& get_value(expected<T, E>&) {}
+	error_type& get_error(expected<T, E>&) {}
+	type build_value(...) {}
+	type build_error(...) {}
+};
+
+// Special case for DataTraits<void>
+```
+
+14. Pass Scheduler instance to CustomTask's tick().
+    E.g., extend CustomTask to have either tick(Scheduler&, bool) or tick(bool).
+    Needed to fix function_task.
 
 # Compilers
 

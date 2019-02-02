@@ -14,6 +14,8 @@ namespace nn
 		class FutureTask
 		{
 		public:
+			using expected_type = expected<T, std::exception_ptr>;
+
 			explicit FutureTask(std::future<T>&& f)
 				: result_()
 				, future_(std::move(f))
@@ -27,6 +29,7 @@ namespace nn
 
 				if (!future_.valid())
 				{
+					result_ = MakeExpectedWithDefaultError<expected_type>();
 					return Status::Failed;
 				}
 
@@ -45,12 +48,12 @@ namespace nn
 				}
 				catch (...)
 				{
-					result_ = unexpected<std::exception_ptr>(std::current_exception());
+					SetExpectedWithError(result_, std::current_exception());
 					return Status::Failed;
 				}
 			}
 
-			expected<T, std::exception_ptr>& get()
+			expected_type& get()
 			{
 				return result_;
 			}

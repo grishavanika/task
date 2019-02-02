@@ -45,12 +45,12 @@ public:
 		, IRequestListener& listener);
 	~MockServer();
 
-	nn::Task<StartStats> start(const std::string& address, std::uint16_t port
+	nn::Task<StartStats, StartStats> start(const std::string& address, std::uint16_t port
 		, int backlog = 1);
 
 private:
 	void on_new_connection(::detail::TcpSocket&& client);
-	nn::Task<StartStats> accept_forever();
+	nn::Task<StartStats, StartStats> accept_forever();
 
 private:
 	nn::Scheduler& scheduler_;

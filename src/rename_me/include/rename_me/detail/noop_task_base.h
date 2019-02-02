@@ -11,6 +11,8 @@ namespace nn
 	namespace detail
 	{
 
+		struct CanceledTag {};
+
 		template<typename T, typename E>
 		struct NN_EBO_CLASS NoopTask
 			: private detail::EboStorage<expected<T, E>>
@@ -20,6 +22,11 @@ namespace nn
 			template<typename Expected>
 			explicit NoopTask(Expected&& v)
 				: Storage(std::forward<Expected>(v))
+			{
+			}
+
+			explicit NoopTask(CanceledTag)
+				: Storage(MakeExpectedWithDefaultError<expected<T, E>>())
 			{
 			}
 
@@ -34,7 +41,8 @@ namespace nn
 
 			Status tick(bool cancel_requested)
 			{
-				assert(false);
+				assert(false && "tick() should never be called since "
+					"Noop task has immediate non-inprogress state");
 				(void)cancel_requested;
 				return Status::Canceled;
 			}

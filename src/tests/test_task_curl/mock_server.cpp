@@ -117,7 +117,7 @@ namespace
 		{
 			return nn::expected<void, int>();
 		}
-		return nn::expected<void, int>(nn::unexpected<int>(error));
+		return nn::MakeExpectedWithError<nn::expected<void, int>>(error);
 	}
 
 } // namespace
@@ -209,6 +209,7 @@ namespace detail
 			{
 				if (cancel)
 				{
+					SetExpectedWithError(context.data().result, 0);
 					return nn::Status::Canceled;
 				}
 				sockaddr_in addr{};
@@ -225,7 +226,7 @@ namespace detail
 				{
 					return nn::Status::InProgress;
 				}
-				context.data().result = nn::unexpected<int>(error);
+				SetExpectedWithError(context.data().result, error);
 				return nn::Status::Failed;
 			}
 				, [](nn::Context<AcceptContext>& context)
@@ -252,6 +253,7 @@ namespace detail
 				{
 					if (cancel)
 					{
+						SetExpectedWithError(result_, 0);
 						return nn::Status::Canceled;
 					}
 					std::string& chunk = result_.value();
@@ -265,7 +267,7 @@ namespace detail
 					}
 					else if (available == SOCKET_ERROR)
 					{
-						result_ = nn::unexpected<int>(error);
+						SetExpectedWithError(result_, error);
 						return nn::Status::Failed;
 					}
 					chunk.resize(available);
@@ -417,7 +419,7 @@ void MockServer::on_new_connection(::detail::TcpSocket&& client)
 	});
 }
 
-nn::Task<StartStats> MockServer::accept_forever()
+nn::Task<StartStats, StartStats> MockServer::accept_forever()
 {
 	return nn::make_forever_loop_task(
 		nn::make_loop_context(scheduler_, StartStats())
@@ -444,10 +446,20 @@ nn::Task<StartStats> MockServer::accept_forever()
 			return false;
 		}
 		return true;
+	}
+		, [](nn::LoopContext<StartStats>& context
+			, const nn::Task<::detail::TcpSocket, int>&, nn::Status status)
+	{
+		using Result = nn::expected<StartStats, StartStats>;
+		if (status == nn::Status::Successful)
+		{
+			return Result(std::move(context.data()));
+		}
+		return nn::MakeExpectedWithError<Result>(std::move(context.data()));
 	});
 }
 
-nn::Task<StartStats> MockServer::start(const std::string& address
+nn::Task<StartStats, StartStats> MockServer::start(const std::string& address
 	, std::uint16_t port, int backlog /*= 1*/)
 {
 	auto start = [this, backlog, start_task = socket_->bind(address, port)]() mutable
@@ -465,7 +477,8 @@ nn::Task<StartStats> MockServer::start(const std::string& address
 			&& "Unhandled case: listen.get().error() may not be valid");
 		StartStats stats;
 		stats.error = listen.get().error();
-		return nn::make_task(nn::success, scheduler_, stats);
+		using Result = nn::expected<StartStats, StartStats>;
+		return nn::make_task(scheduler_, Result(stats));
 	});
 }
 

@@ -61,10 +61,9 @@ namespace nn
 		using DerivedTask = Task<T, detail::remove_cvref_t<E>>;
 		using Noop = detail::NoopTask<T, typename DerivedTask::error_type>;
 		using Expected = typename DerivedTask::value;
-		using Unexpected = ::nn::unexpected<typename DerivedTask::error_type>;
 
 		return DerivedTask::template make<Noop>(scheduler
-			, Expected(Unexpected(std::move(v))));
+			, MakeExpectedWithError<Expected>(std::move(v)));
 	}
 
 	template<typename T = void>
@@ -87,10 +86,9 @@ namespace nn
 		using DerivedTask = Task<void, void>;
 		using Noop = detail::NoopTask<void, void>;
 		using Expected = typename DerivedTask::value;
-		using Unexpected = unexpected_void;
 
 		return DerivedTask::template make<Noop>(scheduler
-			, Expected(Unexpected()));
+			, MakeExpectedWithDefaultError<Expected>());
 	}
 
 } // namespace nn

@@ -58,8 +58,8 @@ TEST(ForLoop, One_Loop_States)
 			, Task<char> (int context, std::size_t index));
 		MOCK_METHOD3(on_single_task_finish
 			, bool (int context, std::size_t index, char payload));
-		MOCK_METHOD3(on_finish
-			, expected<int, void> (int context, std::size_t index, char payload));
+		MOCK_METHOD4(on_finish
+			, expected<int, void> (int context, std::size_t index, char payload, Status status));
 	};
 	StrictMock<Listener> listener;
 
@@ -71,7 +71,7 @@ TEST(ForLoop, One_Loop_States)
 			.WillOnce(Return(ByMove(create_task())));
 		EXPECT_CALL(listener, on_single_task_finish(752, 0u, 'y'))
 			.WillOnce(Return(false));
-		EXPECT_CALL(listener, on_finish(752, 1u, 'y'))
+		EXPECT_CALL(listener, on_finish(752, 1u, 'y', Status::Successful))
 			.WillOnce(Return(expected<int, void>(2)));
 	}
 
@@ -91,11 +91,11 @@ TEST(ForLoop, One_Loop_States)
 	{
 		return listener.on_before_create(context.data(), context.index());
 	}
-		, [&listener](LoopContext<int>& context, const Task<char>& last_task)
+		, [&listener](LoopContext<int>& context, const Task<char>& last_task, Status status)
 	{
 		assert(last_task.is_successful());
 		return listener.on_finish(context.data()
-			, context.index(), last_task.get().value());
+			, context.index(), last_task.get().value(), status);
 	});
 
 	while (sch.has_tasks())

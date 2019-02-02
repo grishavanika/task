@@ -8,7 +8,7 @@ nn::curl::detail::CurlTask::CurlTask(CurlGet&& curl_get)
 {
 	if (!setup(curl_get))
 	{
-		data_ = Error(CurlError(true));
+		set_generic_error();
 		cleanup();
 	}
 }
@@ -64,11 +64,13 @@ nn::Status nn::curl::detail::CurlTask::tick(bool cancel_requested)
 {
 	if (!multi_handle_)
 	{
+		set_generic_error();
 		return Status::Failed;
 	}
 
 	if (cancel_requested)
 	{
+		set_generic_error();
 		cleanup();
 		return Status::Canceled;
 	}
@@ -100,8 +102,13 @@ nn::Status nn::curl::detail::CurlTask::on_finish()
 nn::Status nn::curl::detail::CurlTask::on_poll_error(CURLMcode code)
 {
 	(void)code;
-	data_ = Error(CurlError(true));
+	set_generic_error();
 	return Status::Failed;
+}
+
+void nn::curl::detail::CurlTask::set_generic_error()
+{
+	SetExpectedWithError(data_, CurlError(true));
 }
 
 nn::expected<nn::curl::Buffer, nn::curl::CurlError>& nn::curl::detail::CurlTask::get()
