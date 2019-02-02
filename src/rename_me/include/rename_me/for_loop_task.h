@@ -234,22 +234,31 @@ namespace nn
 					}
 				}
 
-				// Either was canceled before or
-				// caller says not to start from finish callback or
-				// caller does not want to start at all in start callback
-				if (canceled_ || !do_start || !start_new())
+				// Either was canceled before
+				if (canceled_)
 				{
 					return finish_all(Status::Canceled);
+				}
+				// Or caller says not to start from finish callback
+				// or caller does not want to start at all in start callback
+				if (!do_start || !start_new())
+				{
+					const bool use_data_status = true;
+					return finish_all(Status::Canceled, use_data_status);
 				}
 				return nn::Status::InProgress;
 			}
 
-			[[nodiscard]] Status finish_all(Status with_status)
+			[[nodiscard]] Status finish_all(Status with_status, bool use_data_status = false)
 			{
 				assert(with_status != Status::InProgress);
 				auto& all_finish = EboStorage<OnAllFinish>::get();
 				// Called once. Move all and get the final data
 				data_ = std::move(all_finish)(context_, /*as_const*/task_);
+				if (use_data_status)
+				{
+					return data_.has_value() ? Status::Successful : Status::Failed;
+				}
 				return with_status;
 			}
 
