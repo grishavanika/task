@@ -13,6 +13,12 @@ namespace nn
 
 	class Scheduler;
 
+	template<typename>
+	struct is_task;
+
+	template<typename>
+	struct task_from_expected;
+
 	template<typename T = void, typename E = void>
 	class Task
 	{
@@ -509,5 +515,17 @@ namespace nn
 		assert(task_);
 		return on_cancel(task_->scheduler(), std::forward<F>(f));
 	}
+
+	template<typename>
+	struct is_task : std::false_type { };
+
+	template<typename T, typename E>
+	struct is_task<Task<T, E>> : std::true_type { };
+
+	template<typename T, typename E>
+	struct task_from_expected<expected<T, E>>
+	{
+		using type = Task<T, E>;
+	};
 
 } // namespace nn

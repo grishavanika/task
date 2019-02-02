@@ -34,7 +34,7 @@ namespace nn
 			T value_;
 		};
 
-		template<typename T>
+		template<typename T, typename = struct _>
 		struct NN_EBO_CLASS EboStorage :
 			EboStorageImpl<IsEboEnabled<T>::value, T>
 		{

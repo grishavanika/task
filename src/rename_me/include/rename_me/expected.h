@@ -5,6 +5,9 @@
 namespace nn
 {
 
+	template<typename>
+	struct is_expected;
+
 	// #TODO: make consistent interfcace.
 	// Behavior: expected<void, void> (or any combination of void and T)
 	// should be valid with well-defined behavior.
@@ -48,5 +51,11 @@ namespace nn
 	private:
 		bool ok_;
 	};
+
+	template<typename>
+	struct is_expected : std::false_type { };
+
+	template<typename T, typename E>
+	struct is_expected<expected<T, E>> : std::true_type { };
 
 } // namespace nn

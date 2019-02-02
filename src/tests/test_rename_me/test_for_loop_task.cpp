@@ -8,6 +8,7 @@
 
 using namespace nn;
 
+using ::testing::StrictMock;
 using ::testing::InSequence;
 using ::testing::Return;
 using ::testing::ByMove;
@@ -19,10 +20,12 @@ TEST(ForLoop, Simplest_Forever_Loop_Creation_With_Cancel)
 	Task<> task2 = make_forever_loop_task(sch);
 	Task<int, void> task3 = make_forever_loop_task<int>({sch, int()});
 	Task<std::unique_ptr<int>, void> task4 =
-		make_forever_loop_task(nn::Context<std::unique_ptr<int>>(sch, std::make_unique<int>()));
+		make_forever_loop_task(
+			nn::LoopContext<std::unique_ptr<int>>(sch, std::make_unique<int>()));
 	Task<std::unique_ptr<int>, void> task5 =
-		make_forever_loop_task(nn::make_context(sch, std::make_unique<int>()));
-	Task<> task6 = make_forever_loop_task(nn::make_context(sch));
+		make_forever_loop_task(
+			nn::make_loop_context(sch, std::make_unique<int>()));
+	Task<> task6 = make_forever_loop_task(nn::make_loop_context(sch));
 
 	(void)sch.poll();
 	task1.try_cancel();
@@ -57,40 +60,40 @@ TEST(ForLoop, One_Loop_States)
 			, bool (int context, std::size_t index, char payload));
 		MOCK_METHOD3(on_finish
 			, expected<int, void> (int context, std::size_t index, char payload));
-	} listener;
-
+	};
+	StrictMock<Listener> listener;
 
 	{
 		InSequence one_loop_sequence;
-		EXPECT_CALL(listener, on_before_create(1, 0u))
+		EXPECT_CALL(listener, on_before_create(752, 0u))
 			.WillOnce(Return(true));
-		EXPECT_CALL(listener, on_create(1, 0u))
+		EXPECT_CALL(listener, on_create(752, 0u))
 			.WillOnce(Return(ByMove(create_task())));
-		EXPECT_CALL(listener, on_single_task_finish(1, 0u, 'y'))
+		EXPECT_CALL(listener, on_single_task_finish(752, 0u, 'y'))
 			.WillOnce(Return(false));
-		EXPECT_CALL(listener, on_finish(1, 1u, 'y'))
+		EXPECT_CALL(listener, on_finish(752, 1u, 'y'))
 			.WillOnce(Return(expected<int, void>(2)));
 	}
 
 	Task<int> task = make_for_loop_task(
-		make_context(sch, int(1))
-		, [&](Context<int>& context)
+		make_loop_context(sch, int(752))
+		, [&listener](LoopContext<int>& context)
 	{
 		return listener.on_create(context.data(), context.index());
 	}
-		, [&](Context<int>& context, const Task<char>& task)
+		, [&listener](LoopContext<int>& context, const Task<char>& task)
 	{
 		assert(task.is_successful());
 		return listener.on_single_task_finish(context.data()
 			, context.index(), task.get().value());
 	}
-		, [&](Context<int>& context)
+		, [&listener](LoopContext<int>& context)
 	{
 		return listener.on_before_create(context.data(), context.index());
 	}
-		, [&](Context<int>& context, const Task<char>& last_task)
+		, [&listener](LoopContext<int>& context, const Task<char>& last_task)
 	{
-		assert(task.is_successful());
+		assert(last_task.is_successful());
 		return listener.on_finish(context.data()
 			, context.index(), last_task.get().value());
 	});

@@ -9,16 +9,19 @@ namespace nn
 {
 
 	template<typename UserContext>
-	struct Context
+	struct LoopContext
 	{
-		Context(Scheduler& scheduler)
-			: Context(scheduler, UserContext())
+		LoopContext(Scheduler& scheduler)
+			: scheduler_(scheduler)
+			, data_()
+			, index_(0)
 		{
 		}
 
-		Context(Scheduler& scheduler, UserContext&& context)
+		template<typename... Args>
+		LoopContext(Scheduler& scheduler, Args&&... args)
 			: scheduler_(scheduler)
-			, data_(std::move(context))
+			, data_(std::forward<Args>(args)...)
 			, index_(0)
 		{
 		}
@@ -35,9 +38,9 @@ namespace nn
 	};
 
 	template<>
-	struct Context<void>
+	struct LoopContext<void>
 	{
-		Context(Scheduler& scheduler)
+		LoopContext(Scheduler& scheduler)
 			: scheduler_(scheduler)
 			, index_(0)
 		{
@@ -53,28 +56,28 @@ namespace nn
 	};
 
 	template<typename UserData>
-	auto make_context(Scheduler& scheduler, UserData&& data)
+	auto make_loop_context(Scheduler& scheduler, UserData&& data)
 	{
-		using Type = Context<std::remove_reference_t<UserData>>;
+		using Type = LoopContext<std::remove_reference_t<UserData>>;
 		return Type(scheduler, UserData(std::forward<UserData>(data)));
 	}
 
-	auto make_context(Scheduler& scheduler)
+	auto make_loop_context(Scheduler& scheduler)
 	{
-		return Context<void>(scheduler);
+		return LoopContext<void>(scheduler);
 	}
 
 	namespace detail
 	{
 
-		// Makes task to return what Context is
+		// Makes task to return what UserContext is
 		template<typename UserContext>
 		struct AsContextResultTask
 		{
 			using Result = expected<std::remove_reference_t<UserContext>, void>;
 
 			template<typename T>
-			Result operator()(Context<UserContext>& context, T&& last_task) const
+			Result operator()(LoopContext<UserContext>& context, T&& last_task) const
 			{
 				(void)last_task;
 				(void)context;
@@ -88,7 +91,7 @@ namespace nn
 			using Result = expected<void, void>;
 
 			template<typename T>
-			Result operator()(Context<void>& context, T&& last_task) const
+			Result operator()(LoopContext<void>& context, T&& last_task) const
 			{
 				(void)last_task;
 				(void)context;
@@ -99,7 +102,7 @@ namespace nn
 		template<typename UserContext>
 		struct AlwaysStartTask
 		{
-			bool operator()(Context<UserContext>& context) const
+			bool operator()(LoopContext<UserContext>& context) const
 			{
 				(void)context;
 				return true;
@@ -110,7 +113,7 @@ namespace nn
 		struct AlwaysContinueHandler
 		{
 			template<typename T>
-			bool operator()(Context<UserContext>& context, T&& task) const
+			bool operator()(LoopContext<UserContext>& context, T&& task) const
 			{
 				(void)context;
 				(void)task;
@@ -121,31 +124,10 @@ namespace nn
 		template<typename UserContext>
 		struct NoopUserTask
 		{
-			Task<> operator()(Context<UserContext>& context) const
+			Task<> operator()(LoopContext<UserContext>& context) const
 			{
 				return make_task(success, context.scheduler());
 			}
-		};
-
-		template<typename>
-		struct is_task : std::false_type { };
-
-		template<typename T, typename E>
-		struct is_task<Task<T, E>> : std::true_type { };
-
-		template<typename>
-		struct is_expected : std::false_type { };
-
-		template<typename T, typename E>
-		struct is_expected<expected<T, E>> : std::true_type { };
-
-		template<typename>
-		struct task_from_expected;
-
-		template<typename T, typename E>
-		struct task_from_expected<expected<T, E>>
-		{
-			using type = Task<T, E>;
 		};
 
 		template<
@@ -161,16 +143,17 @@ namespace nn
 			, EboStorage<OnAllFinish>
 		{
 			using task_type = decltype(std::declval<F&>()(
-				std::declval<Context<UserContext>&>()));
+				std::declval<LoopContext<UserContext>&>()/*context*/));
 			static_assert(is_task<task_type>(), "");
 
 			using expected_data = decltype(std::declval<OnAllFinish&>()(
-				std::declval<Context<UserContext>&>(), std::declval<task_type&>()));
+				  std::declval<LoopContext<UserContext>&>()/*context*/
+				, std::declval<task_type&>()/*task*/));
 			static_assert(is_expected<expected_data>(), "");
 
 			using final_task_type = typename task_from_expected<expected_data>::type;
 
-			explicit ForLoopTask(Context<UserContext>&& context
+			explicit ForLoopTask(LoopContext<UserContext>&& context
 				, F f
 				, OnFinish on_task_finish
 				, OnBeforeCreate on_before_create
@@ -289,7 +272,7 @@ namespace nn
 			}
 
 		private:
-			Context<UserContext> context_;
+			LoopContext<UserContext> context_;
 			task_type task_;
 			expected_data data_;
 			bool canceled_;
@@ -304,11 +287,11 @@ namespace nn
 		, typename OnFinish        = detail::AlwaysContinueHandler<UserContext>
 		, typename OnBeforeCreate  = detail::AlwaysStartTask<UserContext>
 		, typename OnAllFinish     = detail::AsContextResultTask<UserContext>>
-	auto make_for_loop_task(Context<UserContext>&& context
-		, F&& task_creator           = F()              // Task<...> (Context<UserContext>&)
-		, OnFinish&& task_finish     = OnFinish()       // bool /*continue*/ (Context<UserContext>&, const Task<...>&)
-		, OnBeforeCreate&& on_before = OnBeforeCreate() // bool /*start*/ (Context<UserContext>&)
-		, OnAllFinish&& all_finish   = OnAllFinish())   // expected<...> (Context<UserContext>&, const Task<...>& last_task)
+	auto make_for_loop_task(LoopContext<UserContext>&& context
+		, F&& task_creator           = F()              // Task<...> (LoopContext<UserContext>&)
+		, OnFinish&& task_finish     = OnFinish()       // bool /*continue*/ (LoopContext<UserContext>&, const Task<...>&)
+		, OnBeforeCreate&& on_before = OnBeforeCreate() // bool /*start*/ (LoopContext<UserContext>&)
+		, OnAllFinish&& all_finish   = OnAllFinish())   // expected<...> (LoopContext<UserContext>&, const Task<...>& last_task)
 	{
 		using TaskImpl = detail::ForLoopTask<
 			std::remove_reference_t<UserContext>
@@ -332,11 +315,11 @@ namespace nn
 		, typename OnFinish        = detail::AlwaysContinueHandler<void>
 		, typename OnBeforeCreate  = detail::AlwaysStartTask<void>
 		, typename OnAllFinish     = detail::AsContextResultTask<void>>
-	auto make_for_loop_task(Context<void>&& context
-		, F&& task_creator           = F()              // Task<...> (Context<UserContext>&)
-		, OnFinish&& task_finish     = OnFinish()       // bool /*continue*/ (Context<UserContext>&, const Task<...>&)
-		, OnBeforeCreate&& on_before = OnBeforeCreate() // bool /*start*/ (Context<UserContext>&)
-		, OnAllFinish&& all_finish   = OnAllFinish())   // expected<...> (Context<UserContext>&)
+	auto make_for_loop_task(LoopContext<void>&& context
+		, F&& task_creator           = F()              // Task<...> (LoopContext<UserContext>&)
+		, OnFinish&& task_finish     = OnFinish()       // bool /*continue*/ (LoopContext<UserContext>&, const Task<...>&)
+		, OnBeforeCreate&& on_before = OnBeforeCreate() // bool /*start*/ (LoopContext<UserContext>&)
+		, OnAllFinish&& all_finish   = OnAllFinish())   // expected<...> (LoopContext<UserContext>&)
 	{
 		return make_for_loop_task<void>(std::move(context)
 			, std::forward<F>(task_creator)
@@ -350,10 +333,10 @@ namespace nn
 		, typename F            = detail::NoopUserTask<UserContext>
 		, typename OnFinish     = detail::AlwaysContinueHandler<UserContext>
 		, typename OnAllFinish  = detail::AsContextResultTask<UserContext>>
-	auto make_forever_loop_task(Context<UserContext>&& context
-		, F&& task_creator         = F()            // Task<...> (Context<UserContext>&)
-		, OnFinish&& task_finish   = OnFinish()     // bool /*continue*/ (Context<UserContext>&, const Task<...>&)
-		, OnAllFinish&& all_finish = OnAllFinish()) // expected<...> (Context<UserContext>&)
+	auto make_forever_loop_task(LoopContext<UserContext>&& context
+		, F&& task_creator         = F()            // Task<...> (LoopContext<UserContext>&)
+		, OnFinish&& task_finish   = OnFinish()     // bool /*continue*/ (LoopContext<UserContext>&, const Task<...>&)
+		, OnAllFinish&& all_finish = OnAllFinish()) // expected<...> (LoopContext<UserContext>&)
 	{
 		return make_for_loop_task(std::move(context)
 			, std::forward<F>(task_creator)
@@ -366,10 +349,10 @@ namespace nn
 		  typename F            = detail::NoopUserTask<void>
 		, typename OnFinish     = detail::AlwaysContinueHandler<void>
 		, typename OnAllFinish  = detail::AsContextResultTask<void>>
-	auto make_forever_loop_task(Context<void>&& context
-		, F&& task_creator         = F()            // Task<...> (Context<UserContext>&)
-		, OnFinish&& task_finish   = OnFinish()     // bool /*continue*/ (Context<UserContext>&, const Task<...>&)
-		, OnAllFinish&& all_finish = OnAllFinish()) // expected<...> (Context<UserContext>&)
+	auto make_forever_loop_task(LoopContext<void>&& context
+		, F&& task_creator         = F()            // Task<...> (LoopContext<UserContext>&)
+		, OnFinish&& task_finish   = OnFinish()     // bool /*continue*/ (LoopContext<UserContext>&, const Task<...>&)
+		, OnAllFinish&& all_finish = OnAllFinish()) // expected<...> (LoopContext<UserContext>&)
 	{
 		return make_for_loop_task(std::move(context)
 			, std::forward<F>(task_creator)

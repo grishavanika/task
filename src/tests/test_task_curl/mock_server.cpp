@@ -4,6 +4,7 @@
 #include <rename_me/function_task.h>
 #include <rename_me/forward_task.h>
 #include <rename_me/for_loop_task.h>
+#include <rename_me/in_place_task.h>
 
 #include <sstream>
 
@@ -194,51 +195,43 @@ namespace detail
 			return (socket_ != kInvalidSocket);
 		}
 
-		nn::Task<TcpSocket, int> accept()
+		nn::Task<TcpSocket, int> accept() &
 		{
-			struct AcceptTask
+			struct AcceptContext
 			{
-				TcpSocket* server_;
-				nn::expected<TcpSocket, int> result_;
-
-				AcceptTask(TcpSocket* server)
-					: server_(server)
-					, result_(TcpSocket())
-				{
-				}
-
-				nn::Status tick(bool cancel)
-				{
-					if (cancel)
-					{
-						return nn::Status::Canceled;
-					}
-					sockaddr_in addr{};
-					socklen_t addr_len = sizeof(addr);
-					Socket client = ::accept(server_->socket_
-						, reinterpret_cast<sockaddr*>(&addr), &addr_len);
-					const int error = LastSocketError();
-					if (client != kInvalidSocket)
-					{
-						result_ = TcpSocket(*server_->scheduler_, client);
-						return nn::Status::Successful;
-					}
-					else if (IsSocketNonblockingError(error))
-					{
-						return nn::Status::InProgress;
-					}
-					result_ = nn::unexpected<int>(error);
-					return nn::Status::Failed;
-				}
-
-				nn::expected<TcpSocket, int>& get()
-				{
-					return result_;
-				}
+				Socket socket;
+				nn::expected<TcpSocket, int> result;
+				AcceptContext(Socket s) : socket(s), result(TcpSocket()) {}
 			};
-
-			return nn::Task<TcpSocket, int>::make<AcceptTask>(
-				*scheduler_, this);
+			return nn::make_in_place_task(
+				nn::make_context(*scheduler_, AcceptContext(socket_))
+				, [](nn::Context<AcceptContext>& context, bool cancel)
+			{
+				if (cancel)
+				{
+					return nn::Status::Canceled;
+				}
+				sockaddr_in addr{};
+				socklen_t addr_len = sizeof(addr);
+				Socket client = ::accept(context.data().socket
+					, reinterpret_cast<sockaddr*>(&addr), &addr_len);
+				const int error = LastSocketError();
+				if (client != kInvalidSocket)
+				{
+					context.data().result = TcpSocket(context.scheduler(), client);
+					return nn::Status::Successful;
+				}
+				else if (IsSocketNonblockingError(error))
+				{
+					return nn::Status::InProgress;
+				}
+				context.data().result = nn::unexpected<int>(error);
+				return nn::Status::Failed;
+			}
+				, [](nn::Context<AcceptContext>& context)
+			{
+				return std::move(context.data().result);
+			});
 		}
 
 		nn::Task<std::string, int> receive_once() &
@@ -427,12 +420,12 @@ void MockServer::on_new_connection(::detail::TcpSocket&& client)
 nn::Task<StartStats> MockServer::accept_forever()
 {
 	return nn::make_forever_loop_task(
-		nn::make_context(scheduler_, StartStats())
-		, [this](nn::Context<StartStats>&)
+		nn::make_loop_context(scheduler_, StartStats())
+		, [this](nn::LoopContext<StartStats>&)
 	{
 		return socket_->accept();
 	}
-		, [this](nn::Context<StartStats>& context
+		, [this](nn::LoopContext<StartStats>& context
 			, const nn::Task<::detail::TcpSocket, int>& accept)
 	{
 		if (accept.is_successful())
