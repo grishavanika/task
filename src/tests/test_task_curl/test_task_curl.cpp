@@ -41,9 +41,9 @@ TEST(TaskCurl, Simple_Get)
 
 	Scheduler scheduler;
 	SocketsInitializer sockets;
-	MockServer server(scheduler, response, 1/*backlog*/);
+	MockServer server(scheduler, response);
 
-	auto server_task = server.start("127.0.0.1", 1255);
+	auto server_task = server.start("127.0.0.1", 1255/*port*/, 1/*backlog*/);
 	(void)scheduler.poll();
 
 	auto get = make_task(scheduler
@@ -75,12 +75,12 @@ TEST(TaskCurl, Multiple_Get)
 	EXPECT_CALL(response, on_get_request("/test"))
 		.WillRepeatedly(Return("data"));
 
-	const int N = 1000;
+	const int N = 10;
 	Scheduler scheduler;
 	SocketsInitializer sockets;
-	MockServer server(scheduler, response, N);
+	MockServer server(scheduler, response);
 
-	auto server_task = server.start("127.0.0.1", 1255);
+	auto server_task = server.start("127.0.0.1", 1255/*port*/, N/*backlog*/);
 	(void)scheduler.poll();
 
 	Scheduler curl_scheduler;
@@ -106,7 +106,7 @@ TEST(TaskCurl, Multiple_Get)
 	}
 	ASSERT_TRUE(server_task.is_finished());
 
-	const unsigned accepted_count = *server_task.get();
+	const unsigned accepted_count = server_task.get().value().accepted_sockets_count;
 	unsigned valid_response = 0;
 	for (auto& request : requests)
 	{

@@ -403,21 +403,25 @@ struct MockServer::AcceptForeverTask
 		{
 			switch (current_.status())
 			{
-			case nn::Status::Canceled  : return nn::Status::Canceled;
-			case nn::Status::InProgress: return nn::Status::InProgress;
-			case nn::Status::Failed:
-			{
-				// Set error ?
-				// But I can handle N client already
-				return nn::Status::Failed;
-			}
-			case nn::Status::Successful:
-			{
-				assert(data_.has_value());
-				++data_.value();
-				server_.on_new_connection(std::move(current_.get().value()));
-				break;
-			}
+				case nn::Status::Canceled:
+				{
+					return nn::Status::Canceled;
+				}
+				case nn::Status::InProgress:
+				{
+					return nn::Status::InProgress;
+				}
+				case nn::Status::Failed:
+				{
+					data_.value().error = current_.get().error();
+					return nn::Status::Failed;
+				}
+				case nn::Status::Successful:
+				{
+					++data_.value().accepted_sockets_count;
+					server_.on_new_connection(std::move(current_.get().value()));
+					break;
+				}
 			}
 		}
 
@@ -425,14 +429,14 @@ struct MockServer::AcceptForeverTask
 		return nn::Status::InProgress;
 	}
 
-	nn::expected<unsigned, int>& get()
+	nn::expected<StartStats, void>& get()
 	{
 		return data_;
 	}
 
 private:
 	MockServer& server_;
-	nn::expected<unsigned, int> data_ = 0;
+	nn::expected<StartStats, void> data_ = StartStats();
 	nn::Task<::detail::TcpSocket, int> current_;
 };
 
@@ -454,12 +458,10 @@ SocketsInitializer::~SocketsInitializer()
 
 /*explicit*/ MockServer::MockServer(
 	nn::Scheduler& scheduler
-	, IRequestListener& listener
-	, int backlog /*= 1*/)
+	, IRequestListener& listener)
 	: scheduler_(scheduler)
 	, listener_(listener)
 	, socket_(std::make_unique<detail::TcpSocket>(scheduler_))
-	, backlog_(backlog)
 {
 }
 
@@ -481,15 +483,26 @@ void MockServer::on_new_connection(::detail::TcpSocket&& client)
 	});
 }
 
-nn::Task<unsigned, int> MockServer::start(const std::string& address, std::uint16_t port)
+nn::Task<StartStats> MockServer::start(const std::string& address
+	, std::uint16_t port, int backlog /*= 1*/)
 {
-	auto start = [this, start_task = socket_->bind(address, port)]() mutable
+	auto start = [this, backlog, start_task = socket_->bind(address, port)]() mutable
 	{
 		return nn::forward_error(std::move(start_task)
-			, [this] { return socket_->listen(backlog_); });
+			, [this, backlog] { return socket_->listen(backlog); });
 	};
-	return nn::forward_error(start()
-		, [this] { return nn::Task<unsigned, int>::make<AcceptForeverTask>(scheduler_, *this); });
+	return start().then([this](const nn::Task<void, int>& listen)
+	{
+		if (listen.is_successful())
+		{
+			return nn::Task<StartStats>::make<AcceptForeverTask>(scheduler_, *this);
+		}
+		assert(!listen.is_canceled()
+			&& "Unhandled case: listen.get().error() may not be valid");
+		StartStats stats;
+		stats.error = listen.get().error();
+		return nn::make_task(nn::success, scheduler_, stats);
+	});
 }
 
 MockServer::~MockServer()

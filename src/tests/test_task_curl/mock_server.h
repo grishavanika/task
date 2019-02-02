@@ -1,17 +1,11 @@
 #pragma once
+#include <rename_me/task.h>
+
 #include <string>
 #include <memory>
 #include <atomic>
 
 #include <cstdint>
-
-namespace nn
-{
-	class Scheduler;
-
-	template<typename T, typename E>
-	class Task;
-} // namespace nn
 
 class IRequestListener
 {
@@ -38,15 +32,21 @@ struct SocketsInitializer
 	SocketsInitializer& operator=(SocketsInitializer&&) = delete;
 };
 
+struct StartStats
+{
+	unsigned accepted_sockets_count = 0;
+	int error = 0;
+};
+
 class MockServer
 {
 public:
 	explicit MockServer(nn::Scheduler& scheduler
-		, IRequestListener& listener
-		, int backlog = 1);
+		, IRequestListener& listener);
 	~MockServer();
 
-	nn::Task<unsigned, int> start(const std::string& address, std::uint16_t port);
+	nn::Task<StartStats> start(const std::string& address, std::uint16_t port
+		, int backlog = 1);
 
 private:
 	void on_new_connection(::detail::TcpSocket&& client);
@@ -56,5 +56,4 @@ private:
 	nn::Scheduler& scheduler_;
 	IRequestListener& listener_;
 	std::unique_ptr<::detail::TcpSocket> socket_;
-	int backlog_;
 };
