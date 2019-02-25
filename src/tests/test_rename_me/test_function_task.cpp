@@ -74,7 +74,7 @@ namespace
 	// May change in the future
 	struct EBOTask : expected<void, void>
 	{
-		Status tick(bool) { return Status::Successful; }
+		Status tick(const ExecutionContext&) { return Status::Successful; }
 		expected<void, void>& get() { return *this; }
 	};
 	// false because expected<void, void> contains bool ok_
@@ -86,7 +86,7 @@ namespace
 	// May change in the future
 	struct EBOTask : expected<void, void>
 	{
-		Status tick(bool) { return Status::Successful; }
+		Status tick(const ExecutionContext&) { return Status::Successful; }
 		expected<void, void>& get() { return *this; }
 	};
 	static_assert(sizeof(detail::InternalCustomTask<void, void, EBOTask>)
@@ -103,9 +103,9 @@ namespace
 		{
 		}
 
-		Status tick(bool cancel_requested)
+		Status tick(const ExecutionContext& context)
 		{
-			if (cancel_requested)
+			if (context.cancel_requested)
 			{
 				get() = MakeExpectedWithDefaultError<expected<void, void>>();
 				return Status::Canceled;

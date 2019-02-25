@@ -54,7 +54,7 @@ namespace nn
 				bool setup(const CurlGet& options);
 				void cleanup();
 
-				Status tick(bool cancel_requested);
+				Status tick(const ExecutionContext& context);
 				expected<Buffer, CurlError>& get();
 
 				Status on_finish();

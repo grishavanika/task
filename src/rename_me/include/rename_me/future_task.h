@@ -22,10 +22,10 @@ namespace nn
 			{
 			}
 
-			Status tick(bool cancel_requested)
+			Status tick(const ExecutionContext& context)
 			{
 				// std::future<> can't be canceled
-				(void)cancel_requested;
+				(void)context.cancel_requested;
 
 				if (!future_.valid())
 				{

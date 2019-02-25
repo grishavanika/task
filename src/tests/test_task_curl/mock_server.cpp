@@ -249,9 +249,9 @@ namespace detail
 					result_.value().resize(1024);
 				}
 
-				nn::Status tick(bool cancel)
+				nn::Status tick(const nn::ExecutionContext& context)
 				{
-					if (cancel)
+					if (context.cancel_requested)
 					{
 						SetExpectedWithError(result_, 0);
 						return nn::Status::Canceled;

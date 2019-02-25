@@ -226,18 +226,16 @@ namespace nn
 			FunctionTask(const FunctionTask&) = delete;
 			FunctionTask& operator=(const FunctionTask&) = delete;
 
-			Status tick(bool cancel_requested)
+			Status tick(const ExecutionContext& context)
 			{
-				if (cancel_requested && !invoked_)
+				if (context.cancel_requested && !invoked_)
 				{
-					// #TODO: need to pass Scheduler to the tick()
-					Scheduler xxx_do_not_commit;
-					Return::set_default_error(xxx_do_not_commit, *this);
+					Return::set_default_error(context.scheduler, *this);
 					return Status::Canceled;
 				}
 				if (IsTask() && invoked_)
 				{
-					return Return::tick_results(*this, cancel_requested);
+					return Return::tick_results(*this, context.cancel_requested);
 				}
 				if (const_invoker().wait())
 				{
@@ -246,8 +244,7 @@ namespace nn
 				}
 				if (!invoker().can_invoke())
 				{
-					Scheduler xxx_do_not_commit;
-					Return::set_default_error(xxx_do_not_commit, *this);
+					Return::set_default_error(context.scheduler, *this);
 					return Status::Canceled;
 				}
 
@@ -255,7 +252,7 @@ namespace nn
 				call_impl(IsApplyVoid());
 				invoked_ = true;
 				assert(Storage::has_value());
-				return Return::tick_results(*this, cancel_requested);
+				return Return::tick_results(*this, context.cancel_requested);
 			}
 
 			typename Return::expected_type& get()

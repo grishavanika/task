@@ -179,9 +179,9 @@ namespace nn
 			{
 			}
 
-			Status tick(bool cancel_requested)
+			Status tick(const ExecutionContext& context)
 			{
-				if (cancel_requested)
+				if (context.cancel_requested)
 				{
 					// If task was start - cancel and wait for finish
 					if (task_.is_valid())
@@ -227,12 +227,12 @@ namespace nn
 					}
 				}
 
-				// Either was canceled before
+				// Either was canceled before;
 				if (canceled_)
 				{
 					return finish_all(Status::Canceled);
 				}
-				// Or caller says not to start from finish callback
+				// or caller says not to start from finish callback;
 				// or caller does not want to start at all in start callback
 				if (!do_start || !start_new())
 				{

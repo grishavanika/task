@@ -18,13 +18,19 @@ namespace nn
 		Canceled,
 	};
 
+	struct ExecutionContext
+	{
+		Scheduler& scheduler;
+		bool cancel_requested = false;
+	};
+
 	// CustomTask<T, E> interface
 #if (0)
 	template<typename T, typename E>
 	struct CustomTask
 	{
 		// Invoked on Scheduler's thread.
-		Status tick(bool cancel_requested);
+		Status tick(const ExecutionContext& context);
 		// To be thread-safe, get() value needs to be set before
 		// finish status returned from tick().
 		// 
@@ -52,28 +58,17 @@ namespace nn
 	} // namespace detail
 
 	// CustomTask<T, E> is any class with:
-	//  (1) Status tick(bool cancel_requested)
+	//  (1) Status tick(const ExecutionContext&)
 	//  (2) expected<T, E>& get()
 	// member functions
 	template<typename CustomTask, typename T, typename E>
 	using CustomTaskInterface = std::void_t<
 			typename detail::VoidifySame<
 				Status, decltype(std::declval<CustomTask&>()
-					.tick(bool()))>::type
+					.tick(std::declval<const ExecutionContext&>()))>::type
 			, typename detail::VoidifySame<
 				expected<T, E>&, decltype(std::declval<CustomTask&>()
 					.get())>::type>;
-
-#if (0)
-	template<typename CustomTask, typename T, typename E>
-	using CustomTaskInterface2 = std::void_t<
-			typename detail::VoidifySame<
-				Status, decltype(std::declval<CustomTask&>()
-					.tick(std::declval<Scheduler&>(), bool()))>::type
-			, typename detail::VoidifySame<
-				expected<T, E>&, decltype(std::declval<CustomTask&>()
-					.get())>::type>;
-#endif
 
 	template<typename CustomTask, typename T, typename E
 		, typename = void>

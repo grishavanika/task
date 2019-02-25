@@ -125,7 +125,7 @@ namespace nn
 		{
 			assert(Base::last_run_ == Status::InProgress);
 			const bool cancel_requested = Base::try_cancel_;
-			const Status status = task().tick(cancel_requested);
+			const Status status = task().tick(ExecutionContext{scheduler_, cancel_requested});
 #if !defined(NDEBUG)
 			validate_data_state(status);
 #endif

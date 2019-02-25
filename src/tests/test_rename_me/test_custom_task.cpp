@@ -11,7 +11,7 @@ namespace
 	template<typename T = void, typename E = void>
 	struct CustomTask
 	{
-		Status tick(bool cancel_requested);
+		Status tick(const ExecutionContext&);
 		expected<T, E>& get();
 	};
 
@@ -45,7 +45,7 @@ namespace
 
 	struct WrongGetReturnTask
 	{
-		Status tick(bool cancel_requested);
+		Status tick(const ExecutionContext&);
 		expected<void, void> get();
 	};
 	static_assert(!IsCustomTask<WrongGetReturnTask, void, void>::value

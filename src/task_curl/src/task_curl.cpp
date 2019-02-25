@@ -60,7 +60,7 @@ nn::curl::detail::CurlTask::~CurlTask()
 	cleanup();
 }
 
-nn::Status nn::curl::detail::CurlTask::tick(bool cancel_requested)
+nn::Status nn::curl::detail::CurlTask::tick(const ExecutionContext& context)
 {
 	if (!multi_handle_)
 	{
@@ -68,7 +68,7 @@ nn::Status nn::curl::detail::CurlTask::tick(bool cancel_requested)
 		return Status::Failed;
 	}
 
-	if (cancel_requested)
+	if (context.cancel_requested)
 	{
 		set_generic_error();
 		cleanup();

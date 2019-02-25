@@ -39,11 +39,11 @@ namespace nn
 					? Status::Successful : Status::Failed;
 			}
 
-			Status tick(bool cancel_requested)
+			Status tick(const ExecutionContext& context)
 			{
 				assert(false && "tick() should never be called since "
 					"Noop task has immediate non-inprogress state");
-				(void)cancel_requested;
+				(void)context;
 				return Status::Canceled;
 			}
 

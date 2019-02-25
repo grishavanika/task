@@ -114,9 +114,9 @@ namespace nn
 			{
 			}
 
-			Status tick(bool cancel_requested)
+			Status tick(const ExecutionContext& exec)
 			{
-				const Status status = TickBase::get()(context_, cancel_requested);
+				const Status status = TickBase::get()(context_, exec.cancel_requested);
 				switch (status)
 				{
 				case Status::InProgress:
@@ -155,7 +155,7 @@ namespace nn
 		, typename Tick        = detail::NoopInplaceTask<UserContext>
 		, typename Finish      = detail::NoopInplaceTask<UserContext>>
 	auto make_in_place_task(Context<UserContext>&& context
-		, Tick&& on_tick     = Tick()    // Status (Context<UserContext>&, bool cancel)
+		, Tick&& on_tick     = Tick()    // Status (Context<UserContext>&, const ExecutionContext&)
 		, Finish&& on_finish = Finish()) // expected<...> (Context<UserContext>&)
 	{
 		using TaskImpl = detail::InplaceTask<
@@ -175,7 +175,7 @@ namespace nn
 		  typename Tick        = detail::NoopInplaceTask<void>
 		, typename Finish      = detail::NoopInplaceTask<void>>
 	auto make_in_place_task(Context<void>&& context
-		, Tick&& on_tick     = Tick()    // Status (Context<UserContext>&, bool cancel)
+		, Tick&& on_tick     = Tick()    // Status (Context<UserContext>&, const ExecutionContext&)
 		, Finish&& on_finish = Finish()) // expected<...> (Context<UserContext>&)
 	{
 		return make_in_place_task<void>(std::move(context)
