@@ -51,7 +51,7 @@ int main()
 }
 ```
 
-See [simple_then example](task/blob/master/src/examples/example_simple_then/main.cpp).
+See [simple_then example](src/examples/example_simple_then/main.cpp).
 
 # TODO:
 
@@ -132,9 +132,16 @@ struct DataTraits<expected<T, E>>
 // Special case for DataTraits<void>
 ```
 
-14. Pass Scheduler instance to CustomTask's tick().
-    E.g., extend CustomTask to have either tick(Scheduler&, bool) or tick(bool).
-    Needed to fix function_task.
+15. When (13.) will be done, on_fail() and on_cancel() and on_success() API
+    can accept raw value among whole task:
+```
+Task<expected<int, char>> task = ...;
+task.on_success([](int data) {});
+task.on_fail([](char data) {});
+task.on_fail([](char data, bool canceled) {});
+task.on_fail([](const Task<expected<int, char>>& task) {});
+task.on_canceled([](char data) {});
+```
 
 # Compilers
 
