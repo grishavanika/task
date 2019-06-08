@@ -65,7 +65,15 @@ See [simple_then example](src/examples/example_simple_then/main.cpp).
 6. Tests: ensure thread-safe stuff.
 8. Polish memory layout for internal tasks.
 9. Default (thread-local ?) Scheduler's ?
-10. Compare to continuable: https://github.com/Naios/continuable
+10. Compare to:
+     a. continuable (https://github.com/Naios/continuable)
+     b. asynqro (https://github.com/dkormalev/asynqro)
+     c. Threading Building Blocks (https://www.threadingbuildingblocks.org/)
+     d. transwarp (https://github.com/bloomen/transwarp)
+     e. Parallel Patterns Library (https://docs.microsoft.com/en-us/cpp/parallel/concrt/parallel-patterns-library-ppl?view=vs-2017)
+     f. https://vittorioromeo.info/index/blog/zeroalloc_continuations_p0.html
+     g. hpx (https://github.com/STEllAR-GROUP/hpx)
+     h. stlab (https://github.com/stlab/libraries)
 11. [*can't be done without some kind of RTTI*] Attach `Info` to the task.
     This allows to have:
       - NoInfo (in Retail, for example)
