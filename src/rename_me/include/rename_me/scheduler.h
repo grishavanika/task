@@ -23,8 +23,8 @@ namespace nn
 		bool has_tasks() const;
 
 	private:
-		template<typename T, typename E>
-		friend class Task;
+		template<typename D>
+		friend class BaseTask;
 
 		void post(detail::ErasedTask task);
 

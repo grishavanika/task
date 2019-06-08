@@ -1,6 +1,7 @@
 #pragma once
 #include <rename_me/detail/ebo_storage.h>
 #include <rename_me/detail/cpp_20.h>
+#include <rename_me/data_traits.h>
 
 #include <utility>
 
@@ -11,22 +12,17 @@ namespace nn
 	namespace detail
 	{
 
-		struct CanceledTag {};
-
-		template<typename T, typename E>
+		template<typename D>
 		struct NN_EBO_CLASS NoopTask
-			: private detail::EboStorage<expected<T, E>>
+			: private detail::EboStorage<D>
 		{
-			using Storage = detail::EboStorage<expected<T, E>>;
+			using Storage = detail::EboStorage<D>;
+			using Traits = DataTraits<D>;
 
-			template<typename Expected>
-			explicit NoopTask(Expected&& v)
-				: Storage(std::forward<Expected>(v))
-			{
-			}
-
-			explicit NoopTask(CanceledTag)
-				: Storage(MakeExpectedWithDefaultError<expected<T, E>>())
+			// #TODO: disable when T is NoopTask
+			template<typename T>
+			explicit NoopTask(T&& v)
+				: Storage(std::forward<T>(v))
 			{
 			}
 
@@ -35,7 +31,8 @@ namespace nn
 
 			Status initial_status() const
 			{
-				return Storage::get().has_value()
+				D& data = Storage::get();
+				return Traits::has_value(data)
 					? Status::Successful : Status::Failed;
 			}
 
@@ -47,7 +44,7 @@ namespace nn
 				return Status::Canceled;
 			}
 
-			expected<T, E>& get()
+			D& get()
 			{
 				return Storage::get();
 			}

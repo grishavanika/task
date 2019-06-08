@@ -16,11 +16,11 @@ namespace nn
 	template<typename>
 	struct is_task;
 
-	template<typename>
-	struct task_from_expected;
+	template<typename D>
+	class BaseTask;
 
-	template<typename T = void, typename E = void>
-	class Task
+	template<typename D>
+	class BaseTask
 	{
 	private:
 		// Reference counting is needed to handle ownership
@@ -30,29 +30,31 @@ namespace nn
 		// (of course this is true only if Task is move-only.
 		// If copy semantic will be enabled, ref. counted-like pointer
 		// is needed in any case)
-		using InternalTask = detail::RefCountPtr<detail::InternalTask<T, E>>;
+		using InternalTask = detail::RefCountPtr<detail::InternalTask<D>>;
 
-		template<typename OtherT, typename OtherE>
-		friend class Task;
+		template<typename OtherD>
+		friend class BaseTask;
+
+		using Traits = DataTraits<D>;
 
 	public:
-		using value_type = T;
-		using error_type = E;
-		using value = expected<T, E>;
+		using data_type  = D;
+		using value_type = typename Traits::value_type;
+		using error_type = typename Traits::error_type;
 
 	public:
 		template<typename CustomTask, typename... Args>
 		static
-			typename std::enable_if<IsCustomTask<CustomTask, T, E>::value, Task>::type
+			typename std::enable_if<IsCustomTask<CustomTask, D>::value, BaseTask>::type
 				make(Scheduler& scheduler, Args&&... args);
-		explicit Task();
-		~Task();
-		Task(Task&& rhs) noexcept;
-		Task& operator=(Task&& rhs) noexcept;
-		Task(const Task& rhs) = delete;
-		Task& operator=(const Task& rhs) = delete;
+		explicit BaseTask();
+		~BaseTask();
+		BaseTask(BaseTask&& rhs) noexcept;
+		BaseTask& operator=(BaseTask&& rhs) noexcept;
+		BaseTask(const BaseTask& rhs) = delete;
+		BaseTask& operator=(const BaseTask& rhs) = delete;
 
-		// Because of on_finish() API, we need to accept `const Task& task`
+		// Because of on_finish() API, we need to accept `const B& task`
 		// to avoid situations when someones std::move(task) to internal storage and,
 		// hence, ending up with, possibly, 2 Tasks intances that refer to same
 		// InternalTask. This also avoids ability to call task.on_finish() inside
@@ -65,10 +67,14 @@ namespace nn
 		//  2. value from expected<> is moved more than once
 		//  3. value from expected<> is read & moved from different threads
 		//		(effect of 2nd case)
-		expected<T, E>& get() const &;
-		expected<T, E>& get() &;
-		expected<T, E> get() &&;
-		expected<T, E> get_once() const;
+		D& get() const &;
+		D& get() &;
+		D get() &&;
+		D get_once() const;
+
+		// #TODO:
+		// value_type(*) get_value()
+		// error_type(*) get_error()
 
 		// Thread-safe
 		void try_cancel();
@@ -97,7 +103,7 @@ namespace nn
 		// InvokeLike callback;
 		// task.on_finish(&InvokeLike::call, callback)
 		template<typename F>
-		detail::FunctionTaskReturnT<F, const Task<T, E>&>
+		detail::FunctionTaskReturnT<F, const BaseTask&>
 			on_finish(Scheduler& scheduler, F&& f);
 
 		// Same as on_finish(), but functor does not need to accept
@@ -156,17 +162,17 @@ namespace nn
 		bool is_valid() const;
 
 	private:
-		explicit Task(InternalTask task);
+		explicit BaseTask(InternalTask task);
 
 		template<typename F, typename CallPredicate
-			, typename ReturnWithTaskArg = detail::FunctionTaskReturn<F, const Task<T, E>&>
+			, typename ReturnWithTaskArg = detail::FunctionTaskReturn<F, const BaseTask&>
 			, typename ReturnWithoutTaskArg = detail::FunctionTaskReturn<F>>
 		auto on_finish_impl(Scheduler& scheduler, F&& f, CallPredicate p);
 
 		template<typename F>
-		static decltype(auto) invoke(std::false_type, F& f, const Task&);
+		static decltype(auto) invoke(std::false_type, F& f, const BaseTask&);
 		template<typename F>
-		static decltype(auto) invoke(std::true_type, F& f, const Task& self);
+		static decltype(auto) invoke(std::true_type, F& f, const BaseTask& self);
 
 		void remove();
 
@@ -186,61 +192,61 @@ namespace nn
 namespace nn
 {
 
-	template<typename T, typename E>
-	/*explicit*/ Task<T, E>::Task(InternalTask task)
+	template<typename D>
+	/*explicit*/ BaseTask<D>::BaseTask(InternalTask task)
 		: task_(std::move(task))
 	{
 	}
 
-	template<typename T, typename E>
+	template<typename D>
 	template<typename CustomTask, typename... Args>
 	/*static*/
-		typename std::enable_if<IsCustomTask<CustomTask, T, E>::value, Task<T, E>>::type
-			Task<T, E>::make(Scheduler& scheduler, Args&&... args)
+		typename std::enable_if<IsCustomTask<CustomTask, D>::value, BaseTask<D>>::type
+			BaseTask<D>::make(Scheduler& scheduler, Args&&... args)
 	{
-		using FullTask = detail::InternalCustomTask<T, E, CustomTask>;
+		using FullTask = detail::InternalCustomTask<D, CustomTask>;
 		auto full_task = detail::RefCountPtr<FullTask>::make(
 			scheduler, std::forward<Args>(args)...);
 		if (full_task->status() == Status::InProgress)
 		{
-			scheduler.post(full_task.template to_base<detail::TaskBase>());
+			scheduler.post(full_task.template to_base<detail::ErasedTaskBase>());
 		}
-		return Task(full_task.template to_base<typename InternalTask::type>());
+		return BaseTask(full_task.template to_base<typename InternalTask::type>());
 	}
 
-	template<typename T, typename E>
-	/*explicit*/ Task<T, E>::Task()
+	template<typename D>
+	/*explicit*/ BaseTask<D>::BaseTask()
 		: task_()
 	{
 	}
 
-	template<typename T, typename E>
-	bool Task<T, E>::is_valid() const
+	template<typename D>
+	bool BaseTask<D>::is_valid() const
 	{
 		return task_.operator bool();
 	}
 
-	template<typename T, typename E>
-	Task<T, E>::~Task()
+	template<typename D>
+	BaseTask<D>::~BaseTask()
 	{
 		remove();
 	}
 
-	template<typename T, typename E>
-	void Task<T, E>::remove()
+	template<typename D>
+	void BaseTask<D>::remove()
 	{
 		task_ = nullptr;
 	}
 
-	template<typename T, typename E>
-	Task<T, E>::Task(Task&& rhs) noexcept
+	template<typename D>
+	BaseTask<D>::BaseTask(BaseTask&& rhs) noexcept
 		: task_(rhs.task_)
 	{
 		rhs.task_ = nullptr;
 	}
 
-	template<typename T, typename E>
-	Task<T, E>& Task<T, E>::operator=(Task&& rhs) noexcept
+	template<typename D>
+	BaseTask<D>& BaseTask<D>::operator=(BaseTask&& rhs) noexcept
 	{
 		if (this != &rhs)
 		{
@@ -250,107 +256,107 @@ namespace nn
 		return *this;
 	}
 
-	template<typename T, typename E>
-	Status Task<T, E>::status() const
+	template<typename D>
+	Status BaseTask<D>::status() const
 	{
 		assert(task_);
 		return task_->status();
 	}
 
-	template<typename T, typename E>
-	bool Task<T, E>::is_in_progress() const
+	template<typename D>
+	bool BaseTask<D>::is_in_progress() const
 	{
 		return (status() == Status::InProgress);
 	}
 
-	template<typename T, typename E>
-	bool Task<T, E>::is_finished() const
+	template<typename D>
+	bool BaseTask<D>::is_finished() const
 	{
 		return (status() != Status::InProgress);
 	}
 
-	template<typename T, typename E>
-	bool Task<T, E>::is_canceled() const
+	template<typename D>
+	bool BaseTask<D>::is_canceled() const
 	{
 		assert(task_);
 		return (status() == Status::Canceled);
 	}
 
-	template<typename T, typename E>
-	bool Task<T, E>::is_failed() const
+	template<typename D>
+	bool BaseTask<D>::is_failed() const
 	{
 		const Status s = status();
 		return (s == Status::Failed)
 			|| (s == Status::Canceled);
 	}
 
-	template<typename T, typename E>
-	bool Task<T, E>::is_successful() const
+	template<typename D>
+	bool BaseTask<D>::is_successful() const
 	{
 		return (status() == Status::Successful);
 	}
 
-	template<typename T, typename E>
-	Scheduler& Task<T, E>::scheduler() const
+	template<typename D>
+	Scheduler& BaseTask<D>::scheduler() const
 	{
 		assert(task_);
 		return task_->scheduler();
 	}
 
-	template<typename T, typename E>
-	void Task<T, E>::try_cancel()
+	template<typename D>
+	void BaseTask<D>::try_cancel()
 	{
 		assert(task_);
 		task_->cancel();
 	}
 
-	template<typename T, typename E>
-	expected<T, E>& Task<T, E>::get() const &
+	template<typename D>
+	D& BaseTask<D>::get() const &
 	{
 		assert(task_);
 		return task_->get_data();
 	}
 
-	template<typename T, typename E>
-	expected<T, E>& Task<T, E>::get() &
+	template<typename D>
+	D& BaseTask<D>::get() &
 	{
 		assert(task_);
 		return task_->get_data();
 	}
 
-	template<typename T, typename E>
-	expected<T, E> Task<T, E>::get() &&
+	template<typename D>
+	D BaseTask<D>::get() &&
 	{
 		assert(task_);
 		return std::move(task_->get_data());
 	}
 
-	template<typename T, typename E>
-	expected<T, E> Task<T, E>::get_once() const
+	template<typename D>
+	D BaseTask<D>::get_once() const
 	{
 		assert(task_);
 		return std::move(task_->get_data());
 	}
 
-	template<typename T, typename E>
+	template<typename D>
 	template<typename F>
-	/*static*/ decltype(auto) Task<T, E>::invoke(std::false_type, F& f, const Task&)
+	/*static*/ decltype(auto) BaseTask<D>::invoke(std::false_type, F& f, const BaseTask&)
 	{
 		return std::move(f)();
 	}
 
-	template<typename T, typename E>
+	template<typename D>
 	template<typename F>
-	/*static*/ decltype(auto) Task<T, E>::invoke(std::true_type, F& f, const Task& self)
+	/*static*/ decltype(auto) BaseTask<D>::invoke(std::true_type, F& f, const BaseTask& self)
 	{
 		return std::move(f)(self);
 	}
 
-	template<typename T, typename E>
+	template<typename D>
 	template<typename F, typename CallPredicate
 		, typename ReturnWithTaskArg
 		, typename ReturnWithoutTaskArg>
-	auto Task<T, E>::on_finish_impl(Scheduler& scheduler, F&& f, CallPredicate p)
+	auto BaseTask<D>::on_finish_impl(Scheduler& scheduler, F&& f, CallPredicate p)
 	{
 		using HasTaskArg = typename ReturnWithTaskArg::is_valid;
 		using Function = detail::remove_cvref_t<F>;
@@ -376,13 +382,13 @@ namespace nn
 			decltype(auto) invoke()
 			{
 				Function& f = static_cast<Callable&>(*this).get();
-				return Task::invoke(HasTaskArg(), f, Task(task));
+				return BaseTask::invoke(HasTaskArg(), f, BaseTask(task));
 			}
 
 			bool can_invoke()
 			{
 				auto& call_if = static_cast<CallPredicate&>(*this);
-				return std::move(call_if)(Task(task));
+				return std::move(call_if)(BaseTask(task));
 			}
 
 			bool wait() const
@@ -400,13 +406,13 @@ namespace nn
 			, Invoker(std::forward<F>(f), std::move(p), task_));
 	}
 
-	template<typename T, typename E>
+	template<typename D>
 	template<typename F>
-	detail::FunctionTaskReturnT<F, const Task<T, E>&>
-		Task<T, E>::on_finish(Scheduler& scheduler, F&& f)
+	detail::FunctionTaskReturnT<F, const BaseTask<D>&>
+		BaseTask<D>::on_finish(Scheduler& scheduler, F&& f)
 	{
 		return on_finish_impl(scheduler, std::forward<F>(f)
-			, [](const Task& self)
+			, [](const BaseTask& self)
 		{
 			// Invoke callback in any case
 			(void)self;
@@ -414,18 +420,18 @@ namespace nn
 		});
 	}
 
-	template<typename T, typename E>
+	template<typename D>
 	template<typename F>
 	detail::FunctionTaskReturnT<F>
-		Task<T, E>::on_finish(Scheduler& scheduler, F&& f)
+		BaseTask<D>::on_finish(Scheduler& scheduler, F&& f)
 	{
 		return on_finish_impl(scheduler, std::forward<F>(f)
-			, [](const Task&) { return true; });
+			, [](const BaseTask&) { return true; });
 	}
 
-	template<typename T, typename E>
+	template<typename D>
 	template<typename F>
-	auto Task<T, E>::on_finish(F&& f)
+	auto BaseTask<D>::on_finish(F&& f)
 		-> decltype(on_finish(
 			std::declval<Scheduler&>(), std::forward<F>(f)))
 	{
@@ -433,38 +439,38 @@ namespace nn
 		return on_finish(task_->scheduler(), std::forward<F>(f));
 	}
 
-	template<typename T, typename E>
+	template<typename D>
 	template<typename F>
-	auto Task<T, E>::then(Scheduler& scheduler, F&& f)
+	auto BaseTask<D>::then(Scheduler& scheduler, F&& f)
 		-> decltype(on_finish(scheduler, std::forward<F>(f)))
 	{
 		return on_finish(scheduler, std::forward<F>(f));
 	}
 
-	template<typename T, typename E>
+	template<typename D>
 	template<typename F>
-	auto Task<T, E>::then(F&& f)
+	auto BaseTask<D>::then(F&& f)
 		-> decltype(then(
 			std::declval<Scheduler&>(), std::forward<F>(f)))
 	{
 		return then(task_->scheduler(), std::forward<F>(f));
 	}
 
-	template<typename T, typename E>
+	template<typename D>
 	template<typename F>
-	auto Task<T, E>::on_fail(Scheduler& scheduler, F&& f)
+	auto BaseTask<D>::on_fail(Scheduler& scheduler, F&& f)
 		-> decltype(on_finish(scheduler, std::forward<F>(f)))
 	{
 		return on_finish_impl(scheduler, std::forward<F>(f)
-			, [](const Task& self)
+			, [](const BaseTask& self)
 		{
 			return self.is_failed();
 		});
 	}
 
-	template<typename T, typename E>
+	template<typename D>
 	template<typename F>
-	auto Task<T, E>::on_fail(F&& f)
+	auto BaseTask<D>::on_fail(F&& f)
 		-> decltype(on_fail(
 			std::declval<Scheduler&>(), std::forward<F>(f)))
 	{
@@ -472,21 +478,21 @@ namespace nn
 		return on_fail(task_->scheduler(), std::forward<F>(f));
 	}
 
-	template<typename T, typename E>
+	template<typename D>
 	template<typename F>
-	auto Task<T, E>::on_success(Scheduler& scheduler, F&& f)
+	auto BaseTask<D>::on_success(Scheduler& scheduler, F&& f)
 		-> decltype(on_finish(scheduler, std::forward<F>(f)))
 	{
 		return on_finish_impl(scheduler, std::forward<F>(f)
-			, [](const Task& self)
+			, [](const BaseTask& self)
 		{
 			return self.is_successful();
 		});
 	}
 
-	template<typename T, typename E>
+	template<typename D>
 	template<typename F>
-	auto Task<T, E>::on_success(F&& f)
+	auto BaseTask<D>::on_success(F&& f)
 		-> decltype(on_success(
 			std::declval<Scheduler&>(), std::forward<F>(f)))
 	{
@@ -494,21 +500,21 @@ namespace nn
 		return on_success(task_->scheduler(), std::forward<F>(f));
 	}
 
-	template<typename T, typename E>
+	template<typename D>
 	template<typename F>
-	auto Task<T, E>::on_cancel(Scheduler& scheduler, F&& f)
+	auto BaseTask<D>::on_cancel(Scheduler& scheduler, F&& f)
 		-> decltype(on_finish(scheduler, std::forward<F>(f)))
 	{
 		return on_finish_impl(scheduler, std::forward<F>(f)
-			, [](const Task& self)
+			, [](const BaseTask& self)
 		{
 			return self.is_canceled();
 		});
 	}
 
-	template<typename T, typename E>
+	template<typename D>
 	template<typename F>
-	auto Task<T, E>::on_cancel(F&& f)
+	auto BaseTask<D>::on_cancel(F&& f)
 		-> decltype(on_cancel(
 			std::declval<Scheduler&>(), std::forward<F>(f)))
 	{
@@ -519,8 +525,21 @@ namespace nn
 	template<typename>
 	struct is_task : std::false_type { };
 
+	template<typename D>
+	struct is_task<BaseTask<D>> : std::true_type { };
+
+} // namespace nn
+
+#include <rename_me/expected.h>
+
+namespace nn
+{
+
 	template<typename T, typename E>
-	struct is_task<Task<T, E>> : std::true_type { };
+	using Task = BaseTask<expected<T, E>>;
+
+	template<typename>
+	struct task_from_expected;
 
 	template<typename T, typename E>
 	struct task_from_expected<expected<T, E>>

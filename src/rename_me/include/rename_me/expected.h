@@ -4,6 +4,8 @@
 
 #include <type_traits>
 
+#include <rename_me/data_traits.h>
+
 namespace nn
 {
 
@@ -133,4 +135,41 @@ namespace nn
 		data = detail::UnexpectedBuilder<expected<void, void>>::make();
 	}
 
+	template<typename T, typename E>
+	struct DataTraits<expected<T, E>>
+	{
+		using value_type = T;
+		using error_type = E;
+		using type = expected<T, E>;
+
+		static expected<T, E> make()
+		{
+			return expected<T, E>();
+		}
+
+		static T& get_value(expected<T, E>& data)
+		{
+			return data;
+		}
+
+		static E& get_error(expected<T, E>& data)
+		{
+			(void)data;
+		}
+
+		static bool has_value(const expected<T, E>& data)
+		{
+			return data.has_value();
+		}
+
+		static bool has_error(const expected<T, E>& data)
+		{
+			return !data.has_value();
+		}
+
+		static void set_cancel_error(type& data)
+		{
+			data = unexpected<E>();
+		}
+	};
 } // namespace nn

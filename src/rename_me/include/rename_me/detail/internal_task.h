@@ -3,6 +3,7 @@
 #include <rename_me/detail/ref_count_ptr.h>
 
 #include <atomic>
+#include <limits>
 
 #include <cassert>
 
@@ -14,15 +15,15 @@ namespace nn
 	namespace detail
 	{
 
-		class TaskBase
+		class ErasedTaskBase
 		{
 		public:
-			virtual ~TaskBase() = default;
+			virtual ~ErasedTaskBase() = default;
 
 			virtual Status update() = 0;
 
 		public:
-			// Pointer interface
+			// Pointer interface implementation
 			bool remove_ref_count() noexcept
 			{
 				assert(ref_ != 0);
@@ -43,29 +44,29 @@ namespace nn
 			// char alignment[4]; // For x64
 		};
 
-		static_assert(sizeof(TaskBase) <= 2 * sizeof(void*)
-			, "Expecting TaskBase to be virtual pointer + reference count with "
+		static_assert(sizeof(ErasedTaskBase) <= 2 * sizeof(void*)
+			, "Expecting ErasedTask to be virtual pointer + reference count with "
 			"alignment no more then 2 pointers");
 
-		using ErasedTask = RefCountPtr<TaskBase>;
+		using ErasedTask = RefCountPtr<ErasedTaskBase>;
 
-		template<typename T, typename E>
-		class InternalTask : public TaskBase
+		template<typename D>
+		class InternalTask : public ErasedTaskBase
 		{
 		public:
 			virtual Scheduler& scheduler() = 0;
 			virtual void cancel() = 0;
 			virtual Status status() const = 0;
-			virtual expected<T, E>& get_data() = 0;
+			virtual D& get_data() = 0;
 		};
 
-		template<typename T, typename E, typename CustomTask>
+		template<typename D, typename CustomTask>
 		class InternalCustomTask final
-			: public InternalTask<T, E>
+			: public InternalTask<D>
 		{
-			using Base = InternalTask<T, E>;
-			static_assert(IsCustomTask<CustomTask, T, E>::value
-				, "CustomTask should satisfy CustomTask<T, E> interface");
+			using Base = InternalTask<D>;
+			static_assert(IsCustomTask<CustomTask, D>::value
+				, "CustomTask should satisfy CustomTask<D> interface");
 		public:
 			template<typename... Args>
 			explicit InternalCustomTask(Scheduler& scheduler, Args&&... args);
@@ -76,7 +77,7 @@ namespace nn
 			virtual Status update() override;
 			virtual void cancel() override;
 			virtual Status status() const override;
-			virtual expected<T, E>& get_data() override;
+			virtual D& get_data() override;
 
 			void set_custom_status(std::true_type);
 			void set_custom_status(std::false_type);
@@ -98,9 +99,9 @@ namespace nn
 	namespace detail
 	{
 
-		template<typename T, typename E, typename CustomTask>
+		template<typename D, typename CustomTask>
 		template<typename... Args>
-		/*explicit*/ InternalCustomTask<T, E, CustomTask>::InternalCustomTask(
+		/*explicit*/ InternalCustomTask<D, CustomTask>::InternalCustomTask(
 			Scheduler& scheduler, Args&&... args)
 			: scheduler_(scheduler)
 			, task_(std::forward<Args>(args)...)
@@ -108,20 +109,20 @@ namespace nn
 			set_custom_status(HasInitialStatus<CustomTask>());
 		}
 
-		template<typename T, typename E, typename CustomTask>
-		CustomTask& InternalCustomTask<T, E, CustomTask>::task()
+		template<typename D, typename CustomTask>
+		CustomTask& InternalCustomTask<D, CustomTask>::task()
 		{
 			return task_;
 		}
 
-		template<typename T, typename E, typename CustomTask>
-		Scheduler& InternalCustomTask<T, E, CustomTask>::scheduler()
+		template<typename D, typename CustomTask>
+		Scheduler& InternalCustomTask<D, CustomTask>::scheduler()
 		{
 			return scheduler_;
 		}
 
-		template<typename T, typename E, typename CustomTask>
-		Status InternalCustomTask<T, E, CustomTask>::update()
+		template<typename D, typename CustomTask>
+		Status InternalCustomTask<D, CustomTask>::update()
 		{
 			assert(Base::last_run_ == Status::InProgress);
 			const bool cancel_requested = Base::try_cancel_;
@@ -134,41 +135,41 @@ namespace nn
 			return status;
 		}
 
-		template<typename T, typename E, typename CustomTask>
-		Status InternalCustomTask<T, E, CustomTask>::status() const
+		template<typename D, typename CustomTask>
+		Status InternalCustomTask<D, CustomTask>::status() const
 		{
 			return Base::last_run_;
 		}
 
-		template<typename T, typename E, typename CustomTask>
-		void InternalCustomTask<T, E, CustomTask>::cancel()
+		template<typename D, typename CustomTask>
+		void InternalCustomTask<D, CustomTask>::cancel()
 		{
 			Base::try_cancel_.store(true);
 		}
 
-		template<typename T, typename E, typename CustomTask>
-		expected<T, E>& InternalCustomTask<T, E, CustomTask>::get_data()
+		template<typename D, typename CustomTask>
+		D& InternalCustomTask<D, CustomTask>::get_data()
 		{
 			assert(Base::last_run_ != Status::InProgress);
 			return task().get();
 		}
 
-		template<typename T, typename E, typename CustomTask>
-		void InternalCustomTask<T, E, CustomTask>::set_custom_status(std::true_type)
+		template<typename D, typename CustomTask>
+		void InternalCustomTask<D, CustomTask>::set_custom_status(std::true_type)
 		{
 			assert(Base::last_run_ == Status::InProgress);
 			Base::last_run_ = task().initial_status();
 		}
 
-		template<typename T, typename E, typename CustomTask>
-		void InternalCustomTask<T, E, CustomTask>::set_custom_status(std::false_type)
+		template<typename D, typename CustomTask>
+		void InternalCustomTask<D, CustomTask>::set_custom_status(std::false_type)
 		{
 			assert(Base::last_run_ == Status::InProgress);
 		}
 
 #if !defined(NDEBUG)
-		template<typename T, typename E, typename CustomTask>
-		void InternalCustomTask<T, E, CustomTask>::validate_data_state(Status status)
+		template<typename D, typename CustomTask>
+		void InternalCustomTask<D, CustomTask>::validate_data_state(Status status)
 		{
 			switch (status)
 			{

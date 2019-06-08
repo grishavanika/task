@@ -15,8 +15,8 @@ namespace nn
 	
 	class Scheduler;
 
-	template<typename T, typename E>
-	class Task;
+	template<typename D>
+	class BaseTask;
 
 	namespace detail
 	{

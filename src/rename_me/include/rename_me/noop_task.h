@@ -1,5 +1,5 @@
 #pragma once
-#include <rename_me/task.h>
+#include <rename_me/base_task.h>
 #include <rename_me/detail/cpp_20.h>
 #include <rename_me/detail/noop_task_base.h>
 
@@ -12,16 +12,12 @@ namespace nn
 	struct ErrorTag {};
 	constexpr ErrorTag error{};
 
-	template<typename T, typename E>
-	Task<T, E> make_task(Scheduler& scheduler, expected<T, E>&& v)
+	template<typename D>
+	BaseTask<D> make_task(Scheduler& scheduler, D&& v)
 	{
-		return Task<T, E>::template make<detail::NoopTask<T, E>>(scheduler, std::move(v));
-	}
-
-	template<typename T, typename E>
-	Task<T, E> make_task(Scheduler& scheduler, const expected<T, E>& v)
-	{
-		return Task<T, E>::template make<detail::NoopTask<T, E>>(scheduler, v);
+		using Unref = detail::remove_cvref<D>
+		return BaseTask<D>::template make<detail::NoopTask<Unref>>(
+			scheduler, std::forward<D>(v));
 	}
 
 	template<typename T, typename E = void>

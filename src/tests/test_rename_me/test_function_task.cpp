@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include <rename_me/task.h>
+#include <rename_me/base_task.h>
 #include <rename_me/noop_task.h>
 #include <rename_me/function_task.h>
 #include <rename_me/detail/config.h>
@@ -95,11 +95,9 @@ namespace
 
 	// Test-controlled task
 	struct TestTask
-		: expected<void, void>
 	{
 		explicit TestTask(Status& status)
-			: expected<void, void>()
-			, status_(status)
+			: status_(status)
 		{
 		}
 
@@ -107,21 +105,15 @@ namespace
 		{
 			if (context.cancel_requested)
 			{
-				get() = MakeExpectedWithDefaultError<expected<void, void>>();
 				return Status::Canceled;
 			}
 			return status_;
 		}
 
-		expected<void, void>& get()
-		{
-			return *this;
-		}
-
 		Status& status_;
 	};
 
-	static_assert(IsCustomTask<TestTask, void, void>::value, "");
+	static_assert(IsCustomTask<TestTask, void>::value, "");
 
 	Task<> make_test_task(Scheduler& sch, Status& status)
 	{

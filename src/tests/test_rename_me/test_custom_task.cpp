@@ -8,79 +8,55 @@ using namespace nn;
 namespace
 {
 
-	template<typename T = void, typename E = void>
+	template<typename D = void>
 	struct CustomTask
 	{
 		Status tick(const ExecutionContext&);
-		expected<T, E>& get();
 	};
 
-	static_assert(IsCustomTask<CustomTask<>, void, void>::value
-		, "CustomTask<> is CustomTaskInterface<void, void>");
-	static_assert(IsCustomTask<CustomTask<float, char>, float, char>::value
-		, "CustomTask<float, char> is CustomTaskInterface<float, char>");
+	struct UnknownData {};
 
-	static_assert(!IsCustomTask<CustomTask<int, int>, void, void>::value
-		, "CustomTask<int, int> is NOT CustomTaskInterface<void, void>");
-	static_assert(!IsCustomTask<char, void, void>::value
-		, "char is NOT CustomTaskInterface<void, void>");
+	static_assert(IsCustomTask<CustomTask<>, void>::value
+		, "CustomTask<> is CustomTaskInterface<void>");
+	static_assert(IsCustomTask<CustomTask<float>, float>::value
+		, "CustomTask<float> is CustomTaskInterface<float>");
 
 	struct WrongTickReturnTask
 	{
-		bool tick(bool cancel_requested);
-		expected<void, void>& get();
+		bool tick(const ExecutionContext&);
 	};
-	static_assert(!IsCustomTask<WrongTickReturnTask, void, void>::value
-		, "WrongTickReturnTask is not CustomTaskInterface<void, void> "
-		"because tick(bool) should return Status");
+	static_assert(!IsCustomTask<WrongTickReturnTask, void>::value
+		, "WrongTickReturnTask is not CustomTaskInterface<void> "
+		"because tick(const ExecutionContext&) should return Status");
 
 	struct WrongTickParametersTask
 	{
 		Status tick();
-		expected<void, void>& get();
 	};
-	static_assert(!IsCustomTask<WrongTickParametersTask, void, void>::value
-		, "WrongTickParametersTask is not CustomTaskInterface<void, void> "
+	static_assert(!IsCustomTask<WrongTickParametersTask, void>::value
+		, "WrongTickParametersTask is not CustomTaskInterface<void> "
 		"because tick() should accept bool");
 
-	struct WrongGetReturnTask
-	{
-		Status tick(const ExecutionContext&);
-		expected<void, void> get();
-	};
-	static_assert(!IsCustomTask<WrongGetReturnTask, void, void>::value
-		, "WrongGetReturnTask is not CustomTaskInterface<void, void> "
-		"because get() should return expected<void, void>&");
-
-	struct WrongGetParametersTask
-	{
-		Status tick();
-		expected<void, void>& get(int);
-	};
-	static_assert(!IsCustomTask<WrongGetParametersTask, void, void>::value
-		, "WrongGetParametersTask is not CustomTaskInterface<void, void> "
-		"because get() has not any parameter");
-
 	struct NotTask {};
-	static_assert(!IsCustomTask<NotTask, void, void>::value
-		, "NotTask is NOT CustomTaskInterface<void, void>");
+	static_assert(!IsCustomTask<NotTask, void>::value
+		, "NotTask is NOT CustomTaskInterface<void>");
 
 	template<typename T>
-	typename std::enable_if<IsCustomTask<T, void, void>::value, bool>::type
+	typename std::enable_if<IsCustomTask<T, void>::value, bool>::type
 		CheckSFINAE(T)
 	{
 		return true;
 	}
 
 	template<typename T>
-	typename std::enable_if<!IsCustomTask<T, void, void>::value, bool>::type
+	typename std::enable_if<!IsCustomTask<T, void>::value, bool>::type
 		CheckSFINAE(T)
 	{
 		return false;
 	}
 
 	template<typename T>
-	auto ValidOnlyForTasks(T) -> CustomTaskInterface<T, void, void>
+	auto ValidOnlyForTasks(T) -> CustomTaskInterface<T, void>
 	{
 	}
 

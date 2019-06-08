@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock-matchers.h>
-#include <rename_me/task.h>
+#include <rename_me/base_task.h>
 #include <rename_me/function_task.h>
 
 #include "test_tools.h"
