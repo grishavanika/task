@@ -1,0 +1,15 @@
+cmake_minimum_required(VERSION 2.8.2)
+
+project(tl-expected-download NONE)
+
+include(ExternalProject)
+ExternalProject_Add(tl-expected
+  GIT_REPOSITORY    https://github.com/TartanLlama/expected.git
+  GIT_TAG           master
+  SOURCE_DIR        "${CMAKE_BINARY_DIR}/tl-expected-src"
+  BINARY_DIR        ""
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND     ""
+  INSTALL_COMMAND   ""
+  TEST_COMMAND      ""
+)

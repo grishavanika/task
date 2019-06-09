@@ -10,7 +10,7 @@ target_include_directories(${lib_name} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 
 target_include_directories(${lib_name} PUBLIC include)
 
-target_link_libraries(${lib_name} PUBLIC expected-lite)
+target_link_libraries(${lib_name} PUBLIC tl-expected)
 
 # Now library include future_task example and on GCC on *nix this
 # depends on pthread
