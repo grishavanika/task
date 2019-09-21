@@ -39,10 +39,13 @@ def enum_cmd_values(enum):
 	return [enum_str(c) for c in enum]
 
 class Configuration:
-	def __init__(self, compiler = Compiler.CLANG, platform = Platform.X64, vcpkg_path = None):
+	def __init__(self, compiler = Compiler.CLANG
+		, platform = Platform.X64, vcpkg_path = None
+		, install_to = None):
 		self.compiler = compiler
 		self.platform = platform
 		self.vcpkg_path = vcpkg_path
+		self.install_to = install_to
 
 	def build_folder_name(self):
 		return 'build_{}_{}'.format(enum_str(self.compiler), enum_str(self.platform))
@@ -50,21 +53,20 @@ class Configuration:
 def cmake_win_generator_args(config):
 	# TODO: more intelligent configuration
 
+	args = []
+	if config.install_to:
+		args += ['-DCMAKE_INSTALL_PREFIX={}'.format(config.install_to)]
+
 	if config.compiler == Compiler.GCC:
-		return ['-G', 'MinGW Makefiles']
-
-	vs_name = 'Visual Studio 15 2017'
-	if config.platform == Platform.X64:
-		vs_name += ' Win64'
-
-	args = ['-G', vs_name]
-
-	if config.compiler == Compiler.CLANG:
-		args += ['-T', 'LLVM']
-
-	if config.vcpkg_path:
-		args += ['-DCMAKE_TOOLCHAIN_FILE={}'.format(config.vcpkg_path)]
-		#args += ['-DVCPKG_TARGET_TRIPLET={}-windows-static'.format(enum_str(config.platform))]
+		args += ['-G', 'MinGW Makefiles']
+	else:
+		args += ['-G', 'Visual Studio 16 2019']
+		if config.platform == Platform.X64:
+			args += ['-A', 'x64']
+		if config.compiler == Compiler.CLANG:
+			args += ['-T', 'LLVM']
+		if config.vcpkg_path:
+			args += ['-DCMAKE_TOOLCHAIN_FILE={}'.format(config.vcpkg_path)]
 
 	return args
 
@@ -107,13 +109,15 @@ def cmd_line_parser():
 	parser.add_argument('--platform'
 		, choices = enum_cmd_values(Platform), default = enum_str(Platform.X64))
 	parser.add_argument('--vcpkg')
+	parser.add_argument('--install', default = 'deploy')
 	return parser
 
 def configuration_from_args(args):
 	return Configuration(
 		enum_from_string(Compiler, args.compiler),
 		enum_from_string(Platform, args.platform),
-		vcpkg_path = args.vcpkg)
+		vcpkg_path = args.vcpkg,
+		install_to = args.install)
 
 def do_main():
 	args = cmd_line_parser().parse_args()

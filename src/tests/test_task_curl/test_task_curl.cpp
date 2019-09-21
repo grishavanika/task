@@ -65,10 +65,7 @@ TEST(TaskCurl, Simple_Get)
 	ASSERT_EQ("data", ToString(get.get().value()));
 }
 
-// #XXX: temporary disable. Need to investigate why
-// it crashes on *nix, see:
-// https://travis-ci.org/grishavanika/task/builds/497952283
-TEST(TaskCurl, DISABLE_Multiple_Get)
+TEST(TaskCurl, Multiple_Get)
 {
 	struct Response : IRequestListener
 	{
@@ -129,9 +126,7 @@ TEST(TaskCurl, DISABLE_Multiple_Get)
 		"With response   : %u\n"
 		, accepted_count, valid_response);
 
-#if (0) // Check why this fails on Travis
 	ASSERT_GT(valid_response, 0u);
 	ASSERT_GT(accepted_count, 0u);
-#endif
 	ASSERT_EQ(valid_response, accepted_count);
 }

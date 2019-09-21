@@ -17,4 +17,4 @@ endif ()
 # Add tl-expected directly to our build
 add_library(tl-expected INTERFACE)
 target_include_directories(tl-expected INTERFACE
-	${CMAKE_BINARY_DIR}/tl-expected-src)
+	${CMAKE_BINARY_DIR}/tl-expected-src/include)
