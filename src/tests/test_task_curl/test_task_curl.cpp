@@ -80,7 +80,7 @@ TEST(TaskCurl, Multiple_Get)
 	SocketsInitializer sockets;
 	MockServer server(scheduler, response);
 
-	auto server_task = server.start("127.0.0.1", 1255/*port*/, N/*backlog*/);
+	auto server_task = server.start("127.0.0.1", 1256/*port*/, N/*backlog*/);
 	(void)scheduler.poll();
 
 	Scheduler curl_scheduler;
@@ -91,7 +91,7 @@ TEST(TaskCurl, Multiple_Get)
 	{
 		requests.push_back(make_task(curl_scheduler
 			, CurlGet()
-				.set_url("localhost:1255/test")
+				.set_url("localhost:1256/test")
 				.set_verbose(false)));
 	}
 	while (curl_scheduler.has_tasks())
@@ -124,7 +124,8 @@ TEST(TaskCurl, Multiple_Get)
 	std::printf(
 		"Accepted clients: %u\n"
 		"With response   : %u\n"
-		, accepted_count, valid_response);
+		"Error           : %i\n"
+		, accepted_count, valid_response, stats.error);
 
 	ASSERT_GT(valid_response, 0u);
 	ASSERT_GT(accepted_count, 0u);
