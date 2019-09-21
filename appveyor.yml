@@ -6,7 +6,8 @@ environment:
     # LLVM toolset is not installed into MSVC 2019
     #- compiler: clang
     - compiler: cl
-    - compiler: gcc
+    # Disable GCC now; VS 2019 image does not have MinGW installed
+    #- compiler: gcc
 
 configuration:
   #- Debug
